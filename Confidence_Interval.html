@@ -21,95 +21,354 @@
             opacity: 1;
             transform: translateY(0);
         }
+        .history-item-base {
+            transition: background-color 0.2s ease-in-out;
+        }
+        .history-item-clickable {
+            cursor: pointer;
+        }
+        .history-item-clickable:hover {
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        .history-btn {
+            opacity: 0.5;
+            transition: opacity 0.2s ease-in-out, transform 0.1s ease-in-out;
+        }
+        .history-item-base:hover .history-btn {
+            opacity: 1;
+        }
+        .history-btn:active {
+            transform: scale(0.9);
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 flex items-center justify-center min-h-screen p-4">
+<body class="bg-slate-50 text-slate-800 p-4 lg:p-8">
 
-    <div class="w-full max-w-2xl mx-auto">
-        <div class="bg-white rounded-xl shadow-lg p-6 md:p-8">
-            <div class="text-center mb-6">
-                <h1 class="text-2xl md:text-3xl font-bold text-slate-900">遊戲數據信賴區間計算機</h1>
-                <p class="text-slate-500 mt-2">計算 RTP 與命中率的理論合理範圍。</p>
-            </div>
-
-            <!-- RTP 計算區塊 -->
-            <div>
-                <h2 class="text-xl font-bold text-slate-800 border-b pb-2">RTP 信賴區間</h2>
-                <p class="text-sm text-slate-500 mt-2 mb-4">用法：輸入<strong class="font-medium text-slate-600">理論 RTP</strong> 參數。下方算出的區間是<strong class="font-medium text-slate-600">模擬結果</strong>的合理波動範圍。請檢查您實際的模擬 RTP 是否落在此區間內。</p>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div>
-                        <label for="rtp-simulations" class="block text-sm font-medium text-slate-600 mb-1">總模擬次數 (n)</label>
-                        <input type="number" id="rtp-simulations" value="10000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
-                    </div>
-                    <div>
-                        <label for="rtp" class="block text-sm font-medium text-slate-600 mb-1">理論 RTP (μ) (%)</label>
-                        <input type="number" id="rtp" value="96.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
-                    </div>
-                    <div>
-                        <label for="cv" class="block text-sm font-medium text-slate-600 mb-1">理論/基準 CV</label>
-                        <input type="number" id="cv" value="5.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
-                    </div>
-                </div>
+    <div class="max-w-7xl mx-auto lg:flex lg:gap-8">
+        <!-- Main Calculator Section -->
+        <div class="lg:w-2/3 w-full">
+            <div class="bg-white rounded-xl shadow-lg p-6 md:p-8">
                 <div class="text-center mb-6">
-                    <button id="calculateRtpBtn" class="w-full md:w-auto bg-sky-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-sky-700 active:scale-95 transition-transform duration-150 shadow-md hover:shadow-lg">
-                        計算 RTP 區間
-                    </button>
+                    <h1 class="text-2xl md:text-3xl font-bold text-slate-900">遊戲數據信賴區間計算機</h1>
+                    <p class="text-slate-500 mt-2">計算 RTP 與命中率的理論合理範圍。</p>
                 </div>
-                <div id="rtp-error-message" class="text-center text-red-500 font-medium mb-4 hidden"></div>
-                <div id="rtp-results" class="space-y-3"></div>
+
+                <!-- RTP Calculator -->
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2">RTP 信賴區間</h2>
+                    <p class="text-sm text-slate-500 mt-2 mb-4">用法：輸入<strong class="font-medium text-slate-600">理論 RTP</strong> 參數。下方算出的區間是<strong class="font-medium text-slate-600">模擬結果</strong>的合理波動範圍。請檢查您實際的模擬 RTP 是否落在此區間內。</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div>
+                            <label for="rtp-simulations" class="block text-sm font-medium text-slate-600 mb-1">總模擬次數 (n)</label>
+                            <input type="number" id="rtp-simulations" value="10000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
+                        </div>
+                        <div>
+                            <label for="rtp" class="block text-sm font-medium text-slate-600 mb-1">理論 RTP (μ) (%)</label>
+                            <input type="number" id="rtp" value="96.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
+                        </div>
+                        <div>
+                            <label for="cv" class="block text-sm font-medium text-slate-600 mb-1">理論/基準 CV</label>
+                            <input type="number" id="cv" value="5.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
+                        </div>
+                    </div>
+                    <div class="text-center mb-6">
+                        <button id="calculateRtpBtn" class="w-full md:w-auto bg-sky-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-sky-700 active:scale-95 transition-transform duration-150 shadow-md hover:shadow-lg">
+                            計算 RTP 區間
+                        </button>
+                    </div>
+                    <div id="rtp-error-message" class="text-center text-red-500 font-medium mb-4 hidden"></div>
+                    <div id="rtp-results" class="space-y-3"></div>
+                </div>
+
+                <hr class="my-8 border-slate-200">
+
+                <!-- Hit Rate Calculator -->
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2">命中率信賴區間</h2>
+                    <p class="text-sm text-slate-500 mt-2 mb-4">用法：輸入您的<strong class="font-medium text-slate-600">模擬結果</strong>。下方算出的區間是<strong class="font-medium text-slate-600">真實理論值</strong>的合理範圍。請檢查您的理論命中率是否落在此區間內。</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label for="hits" class="block text-sm font-medium text-slate-600 mb-1">模擬命中次數 (k)</label>
+                            <input type="number" id="hits" value="2000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
+                        </div>
+                        <div>
+                            <label for="hit-rate-spins" class="block text-sm font-medium text-slate-600 mb-1">模擬總次數 (n)</label>
+                            <input type="number" id="hit-rate-spins" value="10000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
+                        </div>
+                    </div>
+                    <div class="text-center mb-6">
+                        <button id="calculateHitRateBtn" class="w-full md:w-auto bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-emerald-700 active:scale-95 transition-transform duration-150 shadow-md hover:shadow-lg">
+                            計算命中率區間
+                        </button>
+                    </div>
+                    <div id="hit-rate-error-message" class="text-center text-red-500 font-medium mb-4 hidden"></div>
+                    <div id="hit-rate-results" class="space-y-3"></div>
+                </div>
             </div>
+            <footer class="text-center mt-6 text-sm text-slate-400">
+                <p class="mb-1">Developed by Pascal Huang on 2025/08/15.</p>
+                <p>&copy; 2025 Confidence Interval Calculator. All rights reserved.</p>
+            </footer>
+        </div>
 
-            <hr class="my-8 border-slate-200">
+        <!-- Right Sidebar -->
+        <div class="lg:w-1/3 w-full mt-8 lg:mt-0">
+            <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 sticky top-8">
+                <!-- History Section -->
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center">歷史紀錄</h2>
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-semibold text-slate-600">RTP 紀錄</h3>
+                        <button class="history-btn" title="清除所有紀錄" onclick="clearHistory('ciCalc_rtpHistory')">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    </div>
+                    <div id="rtp-history" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
+                    <hr class="my-4 border-slate-200">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-semibold text-slate-600">命中率紀錄</h3>
+                        <button class="history-btn" title="清除所有紀錄" onclick="clearHistory('ciCalc_hitRateHistory')">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    </div>
+                    <div id="hit-rate-history" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
+                </div>
+                
+                <hr class="my-6 border-slate-300 border-dashed">
 
-            <!-- 命中率 計算區塊 -->
-            <div>
-                <h2 class="text-xl font-bold text-slate-800 border-b pb-2">命中率信賴區間</h2>
-                <p class="text-sm text-slate-500 mt-2 mb-4">用法：輸入您的<strong class="font-medium text-slate-600">模擬結果</strong>。下方算出的區間是<strong class="font-medium text-slate-600">真實理論值</strong>的合理範圍。請檢查您的理論命中率是否落在此區間內。</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                    <div>
-                        <label for="hits" class="block text-sm font-medium text-slate-600 mb-1">模擬命中次數 (k)</label>
-                        <input type="number" id="hits" value="2000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
-                    </div>
-                    <div>
-                        <label for="hit-rate-spins" class="block text-sm font-medium text-slate-600 mb-1">模擬總次數 (n)</label>
-                        <input type="number" id="hit-rate-spins" value="10000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
-                    </div>
+                <!-- Bookmarks Section -->
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center">書籤紀錄</h2>
+                    <h3 class="font-semibold text-slate-600 mb-2">RTP 書籤</h3>
+                    <div id="rtp-bookmarks" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
+                    <hr class="my-4 border-slate-200">
+                    <h3 class="font-semibold text-slate-600 mb-2">命中率書籤</h3>
+                    <div id="hit-rate-bookmarks" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
                 </div>
-                <div class="text-center mb-6">
-                    <button id="calculateHitRateBtn" class="w-full md:w-auto bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-emerald-700 active:scale-95 transition-transform duration-150 shadow-md hover:shadow-lg">
-                        計算命中率區間
-                    </button>
-                </div>
-                <div id="hit-rate-error-message" class="text-center text-red-500 font-medium mb-4 hidden"></div>
-                <div id="hit-rate-results" class="space-y-3"></div>
             </div>
         </div>
-        <footer class="text-center mt-6 text-sm text-slate-400">
-            <p class="mb-1">Developed by Pascal Huang on 2025/08/15.</p>
-            <p>&copy; 2025 Confidence Interval Calculator. All rights reserved.</p>
-        </footer>
     </div>
 
     <script>
-        // --- 共享常數 ---
-        const zScores = { '95%': 1.96, '99%': 2.576, '99.7%': 3.0 };
-        const rtpLevelColors = { '95%': 'border-sky-500', '99%': 'border-indigo-500', '99.7%': 'border-violet-500' };
-        const hitRateLevelColors = { '95%': 'border-emerald-500', '99%': 'border-teal-500', '99.7%': 'border-cyan-500' };
-
-        // --- RTP 計算機元素與邏輯 ---
-        const calculateRtpBtn = document.getElementById('calculateRtpBtn');
-        const rtpResultsDiv = document.getElementById('rtp-results');
-        const rtpErrorMessageDiv = document.getElementById('rtp-error-message');
+        // --- Element References ---
         const rtpSimulationsInput = document.getElementById('rtp-simulations');
         const rtpInput = document.getElementById('rtp');
         const cvInput = document.getElementById('cv');
+        const calculateRtpBtn = document.getElementById('calculateRtpBtn');
+        const rtpResultsDiv = document.getElementById('rtp-results');
+        const rtpErrorMessageDiv = document.getElementById('rtp-error-message');
+        const rtpHistoryDiv = document.getElementById('rtp-history');
+        const rtpBookmarksDiv = document.getElementById('rtp-bookmarks');
 
+        const hitsInput = document.getElementById('hits');
+        const hitRateSpinsInput = document.getElementById('hit-rate-spins');
+        const calculateHitRateBtn = document.getElementById('calculateHitRateBtn');
+        const hitRateResultsDiv = document.getElementById('hit-rate-results');
+        const hitRateErrorMessageDiv = document.getElementById('hit-rate-error-message');
+        const hitRateHistoryDiv = document.getElementById('hit-rate-history');
+        const hitRateBookmarksDiv = document.getElementById('hit-rate-bookmarks');
+
+        // --- Constants ---
+        const zScores = { '95%': 1.96, '99%': 2.576, '99.7%': 3.0 };
+        const rtpLevelColors = { '95%': 'border-sky-500', '99%': 'border-indigo-500', '99.7%': 'border-violet-500' };
+        const hitRateLevelColors = { '95%': 'border-emerald-500', '99%': 'border-teal-500', '99.7%': 'border-cyan-500' };
+        const MAX_HISTORY = 100;
+
+        // --- Utility Functions ---
+        const formatNumber = (num) => {
+            if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`;
+            if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
+            if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
+            return num;
+        };
+
+        // --- Data Management ---
+        function getLocalData(key) {
+            try {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                console.error(`Error reading from localStorage for key: ${key}`, e);
+                return [];
+            }
+        }
+
+        function setLocalData(key, data) {
+            localStorage.setItem(key, JSON.stringify(data));
+        }
+
+        function saveToHistory(key, data) {
+            let history = getLocalData(key);
+            const isRtp = key.includes('rtp');
+            const existingIndex = history.findIndex(item => 
+                isRtp ? (item.n === data.n && item.rtp === data.rtp && item.cv === data.cv)
+                      : (item.k === data.k && item.n === data.n)
+            );
+
+            if (existingIndex > -1) {
+                const existingItem = history.splice(existingIndex, 1)[0];
+                data.note = existingItem.note;
+            }
+            
+            history.unshift(data);
+            setLocalData(key, history.slice(0, MAX_HISTORY));
+        }
+        
+        // --- UI Rendering ---
+        function renderRtpHistory() {
+            const history = getLocalData('ciCalc_rtpHistory');
+            rtpHistoryDiv.innerHTML = history.length === 0 
+                ? '<p class="text-sm text-slate-400 text-center">尚無紀錄</p>'
+                : history.map((item, index) => `
+                <div class="history-item-base p-2 rounded-md border border-slate-200 flex justify-between items-center">
+                    <div class="flex-grow history-item-clickable" onclick="loadRtpHistory(${item.n}, ${item.rtp}, ${item.cv})">
+                        <p class="text-sm font-medium text-slate-700">N: ${formatNumber(item.n)}, RTP: ${item.rtp}%, CV: ${item.cv}</p>
+                        ${item.note ? `<p class="text-xs text-sky-600 mt-1">${item.note}</p>` : ''}
+                    </div>
+                    <div class="flex-shrink-0 flex items-center ml-2 space-x-1">
+                        <button class="history-btn" title="新增書籤" onclick="addBookmark('ciCalc_rtpHistory', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
+                        <button class="history-btn" title="新增備註" onclick="editNote('ciCalc_rtpHistory', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg></button>
+                        <button class="history-btn" title="刪除紀錄" onclick="deleteItem('ciCalc_rtpHistory', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderHitRateHistory() {
+            const history = getLocalData('ciCalc_hitRateHistory');
+            hitRateHistoryDiv.innerHTML = history.length === 0 
+                ? '<p class="text-sm text-slate-400 text-center">尚無紀錄</p>'
+                : history.map((item, index) => `
+                <div class="history-item-base p-2 rounded-md border border-slate-200 flex justify-between items-center">
+                    <div class="flex-grow history-item-clickable" onclick="loadHitRateHistory(${item.k}, ${item.n})">
+                        <p class="text-sm font-medium text-slate-700">命中: ${formatNumber(item.k)}, 總次數: ${formatNumber(item.n)}</p>
+                        ${item.note ? `<p class="text-xs text-emerald-600 mt-1">${item.note}</p>` : ''}
+                    </div>
+                    <div class="flex-shrink-0 flex items-center ml-2 space-x-1">
+                        <button class="history-btn" title="新增書籤" onclick="addBookmark('ciCalc_hitRateHistory', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
+                        <button class="history-btn" title="新增備註" onclick="editNote('ciCalc_hitRateHistory', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg></button>
+                        <button class="history-btn" title="刪除紀錄" onclick="deleteItem('ciCalc_hitRateHistory', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function renderRtpBookmarks() {
+            const bookmarks = getLocalData('ciCalc_rtpBookmarks');
+            rtpBookmarksDiv.innerHTML = bookmarks.length === 0
+                ? '<p class="text-sm text-slate-400 text-center">尚無書籤</p>'
+                : bookmarks.map((item, index) => `
+                <div class="history-item-base p-2 rounded-md border border-slate-200 flex justify-between items-center">
+                    <div class="flex-grow history-item-clickable" onclick="loadRtpHistory(${item.n}, ${item.rtp}, ${item.cv})">
+                        <p class="text-sm font-medium text-slate-700">N: ${formatNumber(item.n)}, RTP: ${item.rtp}%, CV: ${item.cv}</p>
+                        ${item.note ? `<p class="text-xs text-sky-600 mt-1">${item.note}</p>` : ''}
+                    </div>
+                    <div class="flex-shrink-0 flex items-center ml-2 space-x-1">
+                        <button class="history-btn" title="編輯備註" onclick="editNote('ciCalc_rtpBookmarks', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg></button>
+                        <button class="history-btn" title="取消書籤並放回紀錄" onclick="unbookmarkItem('ciCalc_rtpBookmarks', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" clip-rule="evenodd" /></svg></button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderHitRateBookmarks() {
+            const bookmarks = getLocalData('ciCalc_hitRateBookmarks');
+            hitRateBookmarksDiv.innerHTML = bookmarks.length === 0
+                ? '<p class="text-sm text-slate-400 text-center">尚無書籤</p>'
+                : bookmarks.map((item, index) => `
+                <div class="history-item-base p-2 rounded-md border border-slate-200 flex justify-between items-center">
+                    <div class="flex-grow history-item-clickable" onclick="loadHitRateHistory(${item.k}, ${item.n})">
+                        <p class="text-sm font-medium text-slate-700">命中: ${formatNumber(item.k)}, 總次數: ${formatNumber(item.n)}</p>
+                        ${item.note ? `<p class="text-xs text-emerald-600 mt-1">${item.note}</p>` : ''}
+                    </div>
+                    <div class="flex-shrink-0 flex items-center ml-2 space-x-1">
+                        <button class="history-btn" title="編輯備註" onclick="editNote('ciCalc_hitRateBookmarks', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg></button>
+                        <button class="history-btn" title="取消書籤並放回紀錄" onclick="unbookmarkItem('ciCalc_hitRateBookmarks', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" clip-rule="evenodd" /></svg></button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // --- Global Functions for inline onclick ---
+        window.loadRtpHistory = (n, rtp, cv) => {
+            rtpSimulationsInput.value = n;
+            rtpInput.value = rtp;
+            cvInput.value = cv;
+            calculateRtpBtn.click();
+        };
+        window.loadHitRateHistory = (k, n) => {
+            hitsInput.value = k;
+            hitRateSpinsInput.value = n;
+            calculateHitRateBtn.click();
+        };
+        window.deleteItem = (key, index) => {
+            let data = getLocalData(key);
+            data.splice(index, 1);
+            setLocalData(key, data);
+            key.includes('rtp') ? renderRtpHistory() : renderHitRateHistory();
+        };
+        window.editNote = (key, index) => {
+            let data = getLocalData(key);
+            const currentNote = data[index].note || '';
+            const newNote = prompt('請輸入備註:', currentNote);
+            if (newNote !== null) {
+                data[index].note = newNote;
+                setLocalData(key, data);
+                if (key.includes('History')) {
+                    key.includes('rtp') ? renderRtpHistory() : renderHitRateHistory();
+                } else {
+                    key.includes('rtp') ? renderRtpBookmarks() : renderHitRateBookmarks();
+                }
+            }
+        };
+        window.clearHistory = (key) => {
+            if (confirm('確定要清除所有歷史紀錄嗎？此操作無法復原。')) {
+                localStorage.removeItem(key);
+                key.includes('rtp') ? renderRtpHistory() : renderHitRateHistory();
+            }
+        };
+        window.addBookmark = (historyKey, index) => {
+            const bookmarkKey = historyKey.replace('History', 'Bookmarks');
+            const history = getLocalData(historyKey);
+            const itemToBookmark = history[index];
+            let bookmarks = getLocalData(bookmarkKey);
+            const isRtp = bookmarkKey.includes('rtp');
+            const isDuplicate = bookmarks.some(item => 
+                isRtp ? (item.n === itemToBookmark.n && item.rtp === itemToBookmark.rtp && item.cv === itemToBookmark.cv)
+                      : (item.k === itemToBookmark.k && item.n === itemToBookmark.n)
+            );
+            if (!isDuplicate) {
+                bookmarks.unshift(itemToBookmark);
+                setLocalData(bookmarkKey, bookmarks);
+                isRtp ? renderRtpBookmarks() : renderHitRateBookmarks();
+            } else {
+                alert('此紀錄已存在於書籤中。');
+            }
+        };
+        window.unbookmarkItem = (bookmarkKey, index) => {
+            const historyKey = bookmarkKey.replace('Bookmarks', 'History');
+            let bookmarks = getLocalData(bookmarkKey);
+            const itemToMove = bookmarks.splice(index, 1)[0];
+            setLocalData(bookmarkKey, bookmarks);
+            
+            saveToHistory(historyKey, itemToMove);
+
+            if (bookmarkKey.includes('rtp')) {
+                renderRtpHistory();
+                renderRtpBookmarks();
+            } else {
+                renderHitRateHistory();
+                renderHitRateBookmarks();
+            }
+        };
+
+        // --- Calculation Logic ---
         calculateRtpBtn.addEventListener('click', () => {
             const n = parseFloat(rtpSimulationsInput.value);
-            let rtp = parseFloat(rtpInput.value);
+            const rtpVal = parseFloat(rtpInput.value);
             const cv = parseFloat(cvInput.value);
 
-            if (isNaN(n) || isNaN(rtp) || isNaN(cv) || n <= 0 || cv < 0) {
+            if (isNaN(n) || isNaN(rtpVal) || isNaN(cv) || n <= 0 || cv < 0) {
                 rtpErrorMessageDiv.textContent = '請為 RTP 計算輸入有效的正數值。';
                 rtpErrorMessageDiv.classList.remove('hidden');
                 rtpResultsDiv.innerHTML = '';
@@ -117,47 +376,30 @@
             }
             rtpErrorMessageDiv.classList.add('hidden');
 
-            localStorage.setItem('ciCalc_rtpSimulations', rtpSimulationsInput.value);
-            localStorage.setItem('ciCalc_rtp', rtpInput.value);
-            localStorage.setItem('ciCalc_cv', cvInput.value);
-
-            if (rtp > 1) rtp /= 100;
-
+            saveToHistory('ciCalc_rtpHistory', { n, rtp: rtpVal, cv });
+            renderRtpHistory();
+            
+            let rtp = rtpVal / 100;
             const stdDev = rtp * cv;
             const stdError = stdDev / Math.sqrt(n);
 
             rtpResultsDiv.innerHTML = '';
             Object.entries(zScores).forEach(([level, zScore], index) => {
                 const marginOfError = zScore * stdError;
-                const lowerBound = rtp - marginOfError;
-                const upperBound = rtp + marginOfError;
-                displayResultCard(rtpResultsDiv, level, zScore, lowerBound, upperBound, rtpLevelColors, index, "模擬結果");
+                displayResultCard(rtpResultsDiv, level, zScore, rtp - marginOfError, rtp + marginOfError, rtpLevelColors, index, "模擬結果");
             });
         });
-
-        // --- 命中率計算機元素與邏輯 ---
-        const calculateHitRateBtn = document.getElementById('calculateHitRateBtn');
-        const hitRateResultsDiv = document.getElementById('hit-rate-results');
-        const hitRateErrorMessageDiv = document.getElementById('hit-rate-error-message');
-        const hitsInput = document.getElementById('hits');
-        const hitRateSpinsInput = document.getElementById('hit-rate-spins');
 
         function calculateWilsonScore(k, n, z) {
             if (n === 0) return { lower: 0, upper: 0 };
             const p_hat = k / n;
             const z2 = z * z;
-            
             const center = (p_hat + z2 / (2 * n)) / (1 + z2 / n);
             const margin = z * Math.sqrt(p_hat * (1 - p_hat) / n + z2 / (4 * n * n));
             const interval_width = margin / (1 + z2 / n);
-            
             const lower = center - interval_width;
             const upper = center + interval_width;
-            
-            return {
-                lower: Math.max(0, lower),
-                upper: Math.min(1, upper)
-            };
+            return { lower: Math.max(0, lower), upper: Math.min(1, upper) };
         }
 
         calculateHitRateBtn.addEventListener('click', () => {
@@ -172,8 +414,8 @@
             }
             hitRateErrorMessageDiv.classList.add('hidden');
 
-            localStorage.setItem('ciCalc_hits', hitsInput.value);
-            localStorage.setItem('ciCalc_hitRateSpins', hitRateSpinsInput.value);
+            saveToHistory('ciCalc_hitRateHistory', { k, n });
+            renderHitRateHistory();
 
             hitRateResultsDiv.innerHTML = '';
             Object.entries(zScores).forEach(([level, zScore], index) => {
@@ -182,7 +424,6 @@
             });
         });
 
-        // --- 通用顯示與初始化函式 ---
         function displayResultCard(container, level, zScore, lowerBound, upperBound, colors, delayIndex, subject) {
             const card = document.createElement('div');
             card.className = `result-card bg-white p-4 rounded-lg border-l-4 ${colors[level]} shadow-sm`;
@@ -208,20 +449,29 @@
             setTimeout(() => card.classList.add('show'), 50);
         }
 
+        // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
-            // 載入 RTP 儲存的值
-            rtpSimulationsInput.value = localStorage.getItem('ciCalc_rtpSimulations') || '10000000';
-            rtpInput.value = localStorage.getItem('ciCalc_rtp') || '96.5';
-            cvInput.value = localStorage.getItem('ciCalc_cv') || '5.5';
+            const lastRtp = getLocalData('ciCalc_rtpHistory')[0];
+            if (lastRtp) {
+                rtpSimulationsInput.value = lastRtp.n;
+                rtpInput.value = lastRtp.rtp;
+                cvInput.value = lastRtp.cv;
+            }
             
-            // 載入命中率儲存的值
-            hitsInput.value = localStorage.getItem('ciCalc_hits') || '2000000';
-            hitRateSpinsInput.value = localStorage.getItem('ciCalc_hitRateSpins') || '10000000';
+            const lastHitRate = getLocalData('ciCalc_hitRateHistory')[0];
+            if (lastHitRate) {
+                hitsInput.value = lastHitRate.k;
+                hitRateSpinsInput.value = lastHitRate.n;
+            }
             
-            // 自動觸發計算
+            renderRtpHistory();
+            renderHitRateHistory();
+            renderRtpBookmarks();
+            renderHitRateBookmarks();
+
             calculateRtpBtn.click();
             calculateHitRateBtn.click();
         });
     </script>
 </body>
-</html>
+</ht
