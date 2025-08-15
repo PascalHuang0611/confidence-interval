@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>遊戲數據信賴區間計算機</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+        }
+        .result-card {
+            transition: all 0.3s ease-in-out;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        .result-card.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-2xl mx-auto">
+        <div class="bg-white rounded-xl shadow-lg p-6 md:p-8">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl md:text-3xl font-bold text-slate-900">遊戲數據信賴區間計算機</h1>
+                <p class="text-slate-500 mt-2">計算 RTP 與命中率的理論合理範圍。</p>
+            </div>
+
+            <!-- RTP 計算區塊 -->
+            <div>
+                <h2 class="text-xl font-bold text-slate-800 border-b pb-2">RTP 信賴區間</h2>
+                <p class="text-sm text-slate-500 mt-2 mb-4">用法：輸入<strong class="font-medium text-slate-600">理論 RTP</strong> 參數。下方算出的區間是<strong class="font-medium text-slate-600">模擬結果</strong>的合理波動範圍。請檢查您實際的模擬 RTP 是否落在此區間內。</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div>
+                        <label for="rtp-simulations" class="block text-sm font-medium text-slate-600 mb-1">總模擬次數 (n)</label>
+                        <input type="number" id="rtp-simulations" value="10000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
+                    </div>
+                    <div>
+                        <label for="rtp" class="block text-sm font-medium text-slate-600 mb-1">理論 RTP (μ) (%)</label>
+                        <input type="number" id="rtp" value="96.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
+                    </div>
+                    <div>
+                        <label for="cv" class="block text-sm font-medium text-slate-600 mb-1">理論/基準 CV</label>
+                        <input type="number" id="cv" value="5.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
+                    </div>
+                </div>
+                <div class="text-center mb-6">
+                    <button id="calculateRtpBtn" class="w-full md:w-auto bg-sky-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-sky-700 active:scale-95 transition-transform duration-150 shadow-md hover:shadow-lg">
+                        計算 RTP 區間
+                    </button>
+                </div>
+                <div id="rtp-error-message" class="text-center text-red-500 font-medium mb-4 hidden"></div>
+                <div id="rtp-results" class="space-y-3"></div>
+            </div>
+
+            <hr class="my-8 border-slate-200">
+
+            <!-- 命中率 計算區塊 -->
+            <div>
+                <h2 class="text-xl font-bold text-slate-800 border-b pb-2">命中率信賴區間</h2>
+                <p class="text-sm text-slate-500 mt-2 mb-4">用法：輸入您的<strong class="font-medium text-slate-600">模擬結果</strong>。下方算出的區間是<strong class="font-medium text-slate-600">真實理論值</strong>的合理範圍。請檢查您的理論命中率是否落在此區間內。</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label for="hits" class="block text-sm font-medium text-slate-600 mb-1">模擬命中次數 (k)</label>
+                        <input type="number" id="hits" value="2000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
+                    </div>
+                    <div>
+                        <label for="hit-rate-spins" class="block text-sm font-medium text-slate-600 mb-1">模擬總次數 (n)</label>
+                        <input type="number" id="hit-rate-spins" value="10000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
+                    </div>
+                </div>
+                <div class="text-center mb-6">
+                    <button id="calculateHitRateBtn" class="w-full md:w-auto bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-emerald-700 active:scale-95 transition-transform duration-150 shadow-md hover:shadow-lg">
+                        計算命中率區間
+                    </button>
+                </div>
+                <div id="hit-rate-error-message" class="text-center text-red-500 font-medium mb-4 hidden"></div>
+                <div id="hit-rate-results" class="space-y-3"></div>
+            </div>
+        </div>
+        <footer class="text-center mt-6 text-sm text-slate-400">
+            <p class="mb-1">Developed by Pascal Huang on 2025/08/15.</p>
+            <p>&copy; 2025 Confidence Interval Calculator. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script>
+        // --- 共享常數 ---
+        const zScores = { '95%': 1.96, '99%': 2.576, '99.7%': 3.0 };
+        const rtpLevelColors = { '95%': 'border-sky-500', '99%': 'border-indigo-500', '99.7%': 'border-violet-500' };
+        const hitRateLevelColors = { '95%': 'border-emerald-500', '99%': 'border-teal-500', '99.7%': 'border-cyan-500' };
+
+        // --- RTP 計算機元素與邏輯 ---
+        const calculateRtpBtn = document.getElementById('calculateRtpBtn');
+        const rtpResultsDiv = document.getElementById('rtp-results');
+        const rtpErrorMessageDiv = document.getElementById('rtp-error-message');
+        const rtpSimulationsInput = document.getElementById('rtp-simulations');
+        const rtpInput = document.getElementById('rtp');
+        const cvInput = document.getElementById('cv');
+
+        calculateRtpBtn.addEventListener('click', () => {
+            const n = parseFloat(rtpSimulationsInput.value);
+            let rtp = parseFloat(rtpInput.value);
+            const cv = parseFloat(cvInput.value);
+
+            if (isNaN(n) || isNaN(rtp) || isNaN(cv) || n <= 0 || cv < 0) {
+                rtpErrorMessageDiv.textContent = '請為 RTP 計算輸入有效的正數值。';
+                rtpErrorMessageDiv.classList.remove('hidden');
+                rtpResultsDiv.innerHTML = '';
+                return;
+            }
+            rtpErrorMessageDiv.classList.add('hidden');
+
+            localStorage.setItem('ciCalc_rtpSimulations', rtpSimulationsInput.value);
+            localStorage.setItem('ciCalc_rtp', rtpInput.value);
+            localStorage.setItem('ciCalc_cv', cvInput.value);
+
+            if (rtp > 1) rtp /= 100;
+
+            const stdDev = rtp * cv;
+            const stdError = stdDev / Math.sqrt(n);
+
+            rtpResultsDiv.innerHTML = '';
+            Object.entries(zScores).forEach(([level, zScore], index) => {
+                const marginOfError = zScore * stdError;
+                const lowerBound = rtp - marginOfError;
+                const upperBound = rtp + marginOfError;
+                displayResultCard(rtpResultsDiv, level, zScore, lowerBound, upperBound, rtpLevelColors, index, "模擬結果");
+            });
+        });
+
+        // --- 命中率計算機元素與邏輯 ---
+        const calculateHitRateBtn = document.getElementById('calculateHitRateBtn');
+        const hitRateResultsDiv = document.getElementById('hit-rate-results');
+        const hitRateErrorMessageDiv = document.getElementById('hit-rate-error-message');
+        const hitsInput = document.getElementById('hits');
+        const hitRateSpinsInput = document.getElementById('hit-rate-spins');
+
+        function calculateWilsonScore(k, n, z) {
+            if (n === 0) return { lower: 0, upper: 0 };
+            const p_hat = k / n;
+            const z2 = z * z;
+            
+            const center = (p_hat + z2 / (2 * n)) / (1 + z2 / n);
+            const margin = z * Math.sqrt(p_hat * (1 - p_hat) / n + z2 / (4 * n * n));
+            const interval_width = margin / (1 + z2 / n);
+            
+            const lower = center - interval_width;
+            const upper = center + interval_width;
+            
+            return {
+                lower: Math.max(0, lower),
+                upper: Math.min(1, upper)
+            };
+        }
+
+        calculateHitRateBtn.addEventListener('click', () => {
+            const k = parseFloat(hitsInput.value);
+            const n = parseFloat(hitRateSpinsInput.value);
+
+            if (isNaN(k) || isNaN(n) || n <= 0 || k < 0 || k > n) {
+                hitRateErrorMessageDiv.textContent = '請為命中率計算輸入有效數值 (n > 0, 0 <= k <= n)。';
+                hitRateErrorMessageDiv.classList.remove('hidden');
+                hitRateResultsDiv.innerHTML = '';
+                return;
+            }
+            hitRateErrorMessageDiv.classList.add('hidden');
+
+            localStorage.setItem('ciCalc_hits', hitsInput.value);
+            localStorage.setItem('ciCalc_hitRateSpins', hitRateSpinsInput.value);
+
+            hitRateResultsDiv.innerHTML = '';
+            Object.entries(zScores).forEach(([level, zScore], index) => {
+                const { lower, upper } = calculateWilsonScore(k, n, zScore);
+                displayResultCard(hitRateResultsDiv, level, zScore, lower, upper, hitRateLevelColors, index, "真實理論值");
+            });
+        });
+
+        // --- 通用顯示與初始化函式 ---
+        function displayResultCard(container, level, zScore, lowerBound, upperBound, colors, delayIndex, subject) {
+            const card = document.createElement('div');
+            card.className = `result-card bg-white p-4 rounded-lg border-l-4 ${colors[level]} shadow-sm`;
+            card.style.transitionDelay = `${delayIndex * 100}ms`;
+            
+            card.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div class="font-bold text-lg text-slate-700">${level} 信賴區間</div>
+                    <div class="text-sm text-slate-500">Z-score: ${zScore}</div>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">代表有 ${level} 的信心，${subject}會落在此區間內。</p>
+                <div class="mt-2 text-center bg-slate-50 p-3 rounded-md">
+                    <span class="font-mono text-base md:text-lg tracking-wider text-slate-800">
+                        ${(lowerBound * 100).toFixed(4)}%
+                    </span>
+                    <span class="mx-2 text-slate-400">~</span>
+                    <span class="font-mono text-base md:text-lg tracking-wider text-slate-800">
+                        ${(upperBound * 100).toFixed(4)}%
+                    </span>
+                </div>
+            `;
+            container.appendChild(card);
+            setTimeout(() => card.classList.add('show'), 50);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // 載入 RTP 儲存的值
+            rtpSimulationsInput.value = localStorage.getItem('ciCalc_rtpSimulations') || '10000000';
+            rtpInput.value = localStorage.getItem('ciCalc_rtp') || '96.5';
+            cvInput.value = localStorage.getItem('ciCalc_cv') || '5.5';
+            
+            // 載入命中率儲存的值
+            hitsInput.value = localStorage.getItem('ciCalc_hits') || '2000000';
+            hitRateSpinsInput.value = localStorage.getItem('ciCalc_hitRateSpins') || '10000000';
+            
+            // 自動觸發計算
+            calculateRtpBtn.click();
+            calculateHitRateBtn.click();
+        });
+    </script>
+</body>
+</html>
