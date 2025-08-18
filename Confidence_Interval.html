@@ -145,6 +145,18 @@
                     <h3 class="font-semibold text-slate-600 mb-2">命中率書籤</h3>
                     <div id="hit-rate-bookmarks" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
                 </div>
+
+                <hr class="my-6 border-slate-300 border-dashed">
+
+                <!-- Data Management Section -->
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center">資料管理</h2>
+                    <div class="flex gap-4">
+                        <button onclick="exportData()" class="flex-1 bg-slate-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-slate-700 active:scale-95 transition-transform duration-150">匯出資料</button>
+                        <button onclick="document.getElementById('import-file').click()" class="flex-1 bg-slate-200 text-slate-800 font-bold py-2 px-4 rounded-lg hover:bg-slate-300 active:scale-95 transition-transform duration-150">匯入資料</button>
+                        <input type="file" id="import-file" class="hidden" accept=".json" onchange="importData(event)">
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -173,6 +185,7 @@
         const rtpLevelColors = { '95%': 'border-sky-500', '99%': 'border-indigo-500', '99.7%': 'border-violet-500' };
         const hitRateLevelColors = { '95%': 'border-emerald-500', '99%': 'border-teal-500', '99.7%': 'border-cyan-500' };
         const MAX_HISTORY = 100;
+        const ALL_DATA_KEYS = ['ciCalc_rtpHistory', 'ciCalc_hitRateHistory', 'ciCalc_rtpBookmarks', 'ciCalc_hitRateBookmarks'];
 
         // --- Utility Functions ---
         const formatNumber = (num) => {
@@ -265,7 +278,7 @@
                     </div>
                     <div class="flex-shrink-0 flex items-center ml-2 space-x-1">
                         <button class="history-btn" title="編輯備註" onclick="editNote('ciCalc_rtpBookmarks', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg></button>
-                        <button class="history-btn" title="取消書籤並放回紀錄" onclick="unbookmarkItem('ciCalc_rtpBookmarks', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" clip-rule="evenodd" /></svg></button>
+                        <button class="history-btn" title="取消書籤" onclick="unbookmarkItem('ciCalc_rtpBookmarks', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" clip-rule="evenodd" /></svg></button>
                     </div>
                 </div>
             `).join('');
@@ -283,7 +296,7 @@
                     </div>
                     <div class="flex-shrink-0 flex items-center ml-2 space-x-1">
                         <button class="history-btn" title="編輯備註" onclick="editNote('ciCalc_hitRateBookmarks', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg></button>
-                        <button class="history-btn" title="取消書籤並放回紀錄" onclick="unbookmarkItem('ciCalc_hitRateBookmarks', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" clip-rule="evenodd" /></svg></button>
+                        <button class="history-btn" title="取消書籤" onclick="unbookmarkItem('ciCalc_hitRateBookmarks', ${index})"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" clip-rule="evenodd" /></svg></button>
                     </div>
                 </div>
             `).join('');
@@ -322,7 +335,7 @@
             }
         };
         window.clearHistory = (key) => {
-            if (confirm('確定要清除所有歷史紀錄嗎？此操作無法復原。')) {
+            if (confirm('確定要清除所有歷史紀錄嗎？書籤將會保留。')) {
                 localStorage.removeItem(key);
                 key.includes('rtp') ? renderRtpHistory() : renderHitRateHistory();
             }
@@ -362,6 +375,62 @@
             }
         };
 
+        // --- Data Import/Export ---
+        function exportData() {
+            const dataToExport = {};
+            ALL_DATA_KEYS.forEach(key => {
+                dataToExport[key] = getLocalData(key);
+            });
+            const dataStr = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([dataStr], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const date = new Date().toISOString().slice(0, 10);
+            a.href = url;
+            a.download = `ci_calculator_backup_${date}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (confirm('確定要匯入資料嗎？這將會覆蓋所有現有的歷史紀錄與書籤。')) {
+                        let valid = true;
+                        ALL_DATA_KEYS.forEach(key => {
+                            if (!Array.isArray(importedData[key])) {
+                                valid = false;
+                            }
+                        });
+
+                        if (valid) {
+                            ALL_DATA_KEYS.forEach(key => {
+                                setLocalData(key, importedData[key]);
+                            });
+                            renderAll();
+                            alert('資料匯入成功！');
+                        } else {
+                            alert('檔案格式錯誤，匯入失敗。');
+                        }
+                    }
+                } catch (error) {
+                    alert('讀取檔案失敗，請確認是否為正確的 JSON 備份檔。');
+                    console.error("Import error:", error);
+                } finally {
+                    // Reset file input to allow re-importing the same file
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+        
         // --- Calculation Logic ---
         calculateRtpBtn.addEventListener('click', () => {
             const n = parseFloat(rtpSimulationsInput.value);
@@ -449,6 +518,13 @@
             setTimeout(() => card.classList.add('show'), 50);
         }
 
+        function renderAll() {
+            renderRtpHistory();
+            renderHitRateHistory();
+            renderRtpBookmarks();
+            renderHitRateBookmarks();
+        }
+
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             const lastRtp = getLocalData('ciCalc_rtpHistory')[0];
@@ -464,14 +540,11 @@
                 hitRateSpinsInput.value = lastHitRate.n;
             }
             
-            renderRtpHistory();
-            renderHitRateHistory();
-            renderRtpBookmarks();
-            renderHitRateBookmarks();
+            renderAll();
 
             calculateRtpBtn.click();
             calculateHitRateBtn.click();
         });
     </script>
 </body>
-</ht
+</html>
