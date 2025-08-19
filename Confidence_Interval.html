@@ -34,15 +34,29 @@
             opacity: 0.5;
             transition: opacity 0.2s ease-in-out, transform 0.1s ease-in-out;
         }
-        .history-item-base:hover .history-btn {
+        .history-item-base:hover .history-btn, .cv-group-header:hover .history-btn {
             opacity: 1;
         }
         .history-btn:active {
             transform: scale(0.9);
         }
+        .chevron-icon {
+            transition: transform 0.2s ease-in-out;
+        }
+        .rotate-180 {
+            transform: rotate(180deg);
+        }
+        #toast-notification {
+            transition: opacity 0.3s, transform 0.3s;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 p-4 lg:p-8">
+
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="fixed top-5 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-lg opacity-0 transform -translate-y-10 z-50">
+        已複製 ✅
+    </div>
 
     <div class="max-w-7xl mx-auto lg:flex lg:gap-8">
         <!-- Main Calculator Section -->
@@ -57,18 +71,26 @@
                 <div>
                     <h2 class="text-xl font-bold text-slate-800 border-b pb-2">RTP 信賴區間</h2>
                     <p class="text-sm text-slate-500 mt-2 mb-4">用法：輸入<strong class="font-medium text-slate-600">理論 RTP</strong> 參數。下方算出的區間是<strong class="font-medium text-slate-600">模擬結果</strong>的合理波動範圍。請檢查您實際的模擬 RTP 是否落在此區間內。</p>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div>
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                        <div class="md:col-span-1">
                             <label for="rtp-simulations" class="block text-sm font-medium text-slate-600 mb-1">總模擬次數 (n)</label>
                             <input type="number" id="rtp-simulations" value="10000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
                         </div>
-                        <div>
-                            <label for="rtp" class="block text-sm font-medium text-slate-600 mb-1">理論 RTP (μ) (%)</label>
+                        <div class="md:col-span-1">
+                            <label for="rtp" class="block text-sm font-medium text-slate-600 mb-1">理論 RTP (%)</label>
                             <input type="number" id="rtp" value="96.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
                         </div>
-                        <div>
+                        <div class="md:col-span-3">
                             <label for="cv" class="block text-sm font-medium text-slate-600 mb-1">理論/基準 CV</label>
-                            <input type="number" id="cv" value="5.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="cv" value="5.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
+                                <select id="golden-cv-group-select" class="bg-slate-100 border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
+                                    <option value="">選用群組</option>
+                                </select>
+                                <select id="golden-cv-variant-select" class="bg-slate-100 border border-slate-200 rounded-lg p-2 text-sm focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition">
+                                    <option value="">選用玩法</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="text-center mb-6">
@@ -78,6 +100,60 @@
                     </div>
                     <div id="rtp-error-message" class="text-center text-red-500 font-medium mb-4 hidden"></div>
                     <div id="rtp-results" class="space-y-3"></div>
+                    <!-- RTP Comparison Section -->
+                    <div id="rtp-comparison-section" class="mt-6 hidden">
+                        <label for="actual-rtp-input" class="block text-sm font-medium text-slate-600 mb-1">請輸入您的實際模擬 RTP (%) 進行比對</label>
+                        <div class="flex items-center gap-4">
+                            <input type="number" id="actual-rtp-input" class="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none transition" placeholder="例如: 96.48">
+                            <button id="copy-rtp-report-btn" class="bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg hover:bg-slate-300 active:scale-95 transition-all duration-150 whitespace-nowrap">複製報告</button>
+                        </div>
+                        <div id="rtp-status-display" class="mt-3 flex justify-center gap-2 flex-wrap"></div>
+                        <div id="rtp-chart-container" class="mt-4"></div>
+                    </div>
+                </div>
+
+                <hr class="my-8 border-slate-200">
+                
+                <!-- Simulation Count Estimator -->
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2">模擬次數估算器</h2>
+                    <p class="text-sm text-slate-500 mt-2 mb-4">用法：輸入遊戲參數與期望的精準度，估算為達到此目標所需的最小模擬次數。</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">理論 RTP (%) & 基準 CV</label>
+                             <div class="flex items-center gap-2">
+                                <input type="number" id="estimator-rtp" value="96.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg">
+                                <input type="number" id="estimator-cv" value="5.5" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">選用共享基準</label>
+                            <div class="flex items-center gap-2">
+                                <select id="estimator-group-select" class="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-sm">
+                                    <option value="">選用群組</option>
+                                </select>
+                                <select id="estimator-variant-select" class="w-full bg-slate-100 border border-slate-200 rounded-lg p-2 text-sm">
+                                    <option value="">選用玩法</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="estimator-confidence" class="block text-sm font-medium text-slate-600 mb-1">信賴水準</label>
+                            <select id="estimator-confidence" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg">
+                                <option value="1.96" selected>95%</option>
+                                <option value="2.576">99%</option>
+                                <option value="3.0">99.7%</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="estimator-error" class="block text-sm font-medium text-slate-600 mb-1">誤差邊際 (±%) <span id="estimator-error-suggestion" class="text-xs font-normal text-slate-400 ml-1"></span></label>
+                            <input type="number" id="estimator-error" value="0.1" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg">
+                        </div>
+                    </div>
+                    <div class="text-center mb-6">
+                        <button id="calculate-sims-btn" class="w-full md:w-auto bg-purple-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-purple-700 active:scale-95 transition-transform duration-150">估算所需次數</button>
+                    </div>
+                    <div id="estimator-result" class="text-center p-4 bg-purple-50 text-purple-800 rounded-lg font-medium text-lg hidden"></div>
                 </div>
 
                 <hr class="my-8 border-slate-200">
@@ -103,6 +179,16 @@
                     </div>
                     <div id="hit-rate-error-message" class="text-center text-red-500 font-medium mb-4 hidden"></div>
                     <div id="hit-rate-results" class="space-y-3"></div>
+                    <!-- Hit Rate Comparison Section -->
+                    <div id="hit-rate-comparison-section" class="mt-6 hidden">
+                        <label for="theoretical-hit-rate-input" class="block text-sm font-medium text-slate-600 mb-1">請輸入您的理論命中率 (%) 進行比對</label>
+                        <div class="flex items-center gap-4">
+                            <input type="number" id="theoretical-hit-rate-input" class="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition" placeholder="例如: 20.0">
+                            <button id="copy-hit-rate-report-btn" class="bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg hover:bg-slate-300 active:scale-95 transition-all duration-150 whitespace-nowrap">複製報告</button>
+                        </div>
+                        <div id="hit-rate-status-display" class="mt-3 flex justify-center gap-2 flex-wrap"></div>
+                        <div id="hit-rate-chart-container" class="mt-4"></div>
+                    </div>
                 </div>
             </div>
             <footer class="text-center mt-6 text-sm text-slate-400">
@@ -114,10 +200,22 @@
         <!-- Right Sidebar -->
         <div class="lg:w-1/3 w-full mt-8 lg:mt-0">
             <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 sticky top-8">
-                <!-- History Section -->
+                <!-- Golden CV Management -->
                 <div>
-                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center">歷史紀錄</h2>
-                    <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center">基準 CV 管理</h2>
+                    <div id="golden-cv-controls" class="space-y-2 mb-4">
+                        <input type="text" id="golden-cv-group-name" placeholder="遊戲/群組名稱" class="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm">
+                        <button id="add-golden-cv-group-btn" class="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 text-sm">新增群組</button>
+                    </div>
+                    <div id="golden-cv-list" class="max-h-96 overflow-y-auto space-y-3 pr-2"></div>
+                </div>
+
+                <hr class="my-6 border-slate-300 border-dashed">
+                
+                <!-- History & Bookmarks Section -->
+                <div>
+                     <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center">本機紀錄</h2>
+                     <div class="flex justify-between items-center mb-2">
                         <h3 class="font-semibold text-slate-600">RTP 紀錄</h3>
                         <button class="history-btn" title="清除所有紀錄" onclick="clearHistory('ciCalc_rtpHistory')">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -132,13 +230,7 @@
                         </button>
                     </div>
                     <div id="hit-rate-history" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
-                </div>
-                
-                <hr class="my-6 border-slate-300 border-dashed">
-
-                <!-- Bookmarks Section -->
-                <div>
-                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center">書籤紀錄</h2>
+                    <hr class="my-4 border-slate-200">
                     <h3 class="font-semibold text-slate-600 mb-2">RTP 書籤</h3>
                     <div id="rtp-bookmarks" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
                     <hr class="my-4 border-slate-200">
@@ -161,7 +253,26 @@
         </div>
     </div>
 
+    <!-- Firebase Configuration -->
     <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyAtWxKGEdTMZImstKyYsE0tR5oHRMBH0tU",
+        authDomain: "game-ci-calculator.firebaseapp.com",
+        projectId: "game-ci-calculator",
+        storageBucket: "game-ci-calculator.firebasestorage.app",
+        messagingSenderId: "408268614859",
+        appId: "1:408268614859:web:02d103774c6b36a3ddff4e"
+      };
+      window.__firebase_config = JSON.stringify(firebaseConfig);
+      window.__app_id = 'game-ci-tool-v1'; 
+    </script>
+
+    <script type="module">
+        // --- Firebase SDK Imports ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, updateDoc, getDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
         // --- Element References ---
         const rtpSimulationsInput = document.getElementById('rtp-simulations');
         const rtpInput = document.getElementById('rtp');
@@ -171,6 +282,17 @@
         const rtpErrorMessageDiv = document.getElementById('rtp-error-message');
         const rtpHistoryDiv = document.getElementById('rtp-history');
         const rtpBookmarksDiv = document.getElementById('rtp-bookmarks');
+        const rtpComparisonSection = document.getElementById('rtp-comparison-section');
+        const actualRtpInput = document.getElementById('actual-rtp-input');
+        const rtpStatusDisplay = document.getElementById('rtp-status-display');
+        const rtpChartContainer = document.getElementById('rtp-chart-container');
+        const goldenCvGroupSelect = document.getElementById('golden-cv-group-select');
+        const goldenCvVariantSelect = document.getElementById('golden-cv-variant-select');
+        const goldenCvGroupNameInput = document.getElementById('golden-cv-group-name');
+        const addGoldenCvGroupBtn = document.getElementById('add-golden-cv-group-btn');
+        const goldenCvListDiv = document.getElementById('golden-cv-list');
+        const goldenCvControlsDiv = document.getElementById('golden-cv-controls');
+        const copyRtpReportBtn = document.getElementById('copy-rtp-report-btn');
 
         const hitsInput = document.getElementById('hits');
         const hitRateSpinsInput = document.getElementById('hit-rate-spins');
@@ -179,6 +301,29 @@
         const hitRateErrorMessageDiv = document.getElementById('hit-rate-error-message');
         const hitRateHistoryDiv = document.getElementById('hit-rate-history');
         const hitRateBookmarksDiv = document.getElementById('hit-rate-bookmarks');
+        const hitRateComparisonSection = document.getElementById('hit-rate-comparison-section');
+        const theoreticalHitRateInput = document.getElementById('theoretical-hit-rate-input');
+        const hitRateStatusDisplay = document.getElementById('hit-rate-status-display');
+        const hitRateChartContainer = document.getElementById('hit-rate-chart-container');
+        const copyHitRateReportBtn = document.getElementById('copy-hit-rate-report-btn');
+        const toastNotification = document.getElementById('toast-notification');
+
+        const estimatorRtpInput = document.getElementById('estimator-rtp');
+        const estimatorCvInput = document.getElementById('estimator-cv');
+        const estimatorConfidenceSelect = document.getElementById('estimator-confidence');
+        const estimatorErrorInput = document.getElementById('estimator-error');
+        const calculateSimsBtn = document.getElementById('calculate-sims-btn');
+        const estimatorResultDiv = document.getElementById('estimator-result');
+        const estimatorGroupSelect = document.getElementById('estimator-group-select');
+        const estimatorVariantSelect = document.getElementById('estimator-variant-select');
+        const estimatorErrorSuggestion = document.getElementById('estimator-error-suggestion');
+
+        // --- State Variables ---
+        let rtpIntervals = {};
+        let hitRateIntervals = {};
+        let db; // Firestore instance
+        let goldenCvData = []; // To store hierarchical CV data
+        let toastTimeout;
 
         // --- Constants ---
         const zScores = { '95%': 1.96, '99%': 2.576, '99.7%': 3.0 };
@@ -187,6 +332,297 @@
         const MAX_HISTORY = 100;
         const ALL_DATA_KEYS = ['ciCalc_rtpHistory', 'ciCalc_hitRateHistory', 'ciCalc_rtpBookmarks', 'ciCalc_hitRateBookmarks'];
 
+        // --- Firebase Setup ---
+        async function setupFirebase() {
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "DEMO", authDomain: "DEMO", projectId: "DEMO" };
+                
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                const auth = getAuth(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
+                const groupsCollection = collection(db, `/artifacts/${appId}/public/data/goldenCVGroups`);
+                onSnapshot(groupsCollection, (snapshot) => {
+                    goldenCvData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    renderGoldenCvList(goldenCvData);
+                    renderGoldenCvGroupSelect(goldenCvData);
+                    loadLastCvSelection();
+                    loadLastEstimatorSelection();
+                });
+
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                goldenCvControlsDiv.innerHTML = `<p class="text-sm text-center p-4 bg-red-50 text-red-700 rounded-lg"><strong>共享資料庫連線失敗</strong><br>錯誤: ${error.code}<br>這通常代表需要啟用匿名登入。請前往 Firebase Console > Authentication > Sign-in method，並啟用「匿名」提供者。</p>`;
+                goldenCvListDiv.innerHTML = '';
+                goldenCvGroupSelect.disabled = true;
+                goldenCvVariantSelect.disabled = true;
+            }
+        }
+        
+        // --- Golden CV Management ---
+        function renderGoldenCvList(groups) {
+            goldenCvListDiv.innerHTML = groups.length === 0
+                ? '<p class="text-sm text-slate-400 text-center">尚無共享基準</p>'
+                : groups.map(group => `
+                <div class="p-2 rounded-md border border-slate-200 bg-slate-50">
+                    <div class="cv-group-header flex justify-between items-center cursor-pointer" onclick="toggleCvGroup('${group.id}')">
+                        <div class="flex items-center">
+                            <p class="font-bold text-indigo-800">${group.name}</p>
+                            <button class="history-btn ml-2" title="編輯群組名稱" onclick="event.stopPropagation(); editGoldenCvGroup('${group.id}', '${group.name}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
+                            </button>
+                        </div>
+                        <div class="flex items-center">
+                            <button class="history-btn" title="刪除群組" onclick="event.stopPropagation(); deleteGoldenCvGroup('${group.id}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                            <svg id="chevron-${group.id}" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-500 chevron-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                        </div>
+                    </div>
+                    <div id="content-${group.id}" class="hidden mt-2 pt-2 border-t border-slate-200">
+                        <div class="pl-2 mt-2 space-y-1">
+                            ${(group.variants || []).map((v, index) => `
+                                <div class="flex justify-between items-center text-sm">
+                                    <p class="text-slate-600">${v.name}: RTP ${v.rtp}%, CV ${v.value}</p>
+                                    <div class="flex items-center">
+                                        <button class="history-btn" title="編輯玩法" onclick="editGoldenCvVariant('${group.id}', ${index})">
+                                           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
+                                        </button>
+                                        <button class="history-btn" title="刪除玩法" onclick="deleteGoldenCvVariant('${group.id}', ${index})">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="flex gap-2 mt-3 pt-2 border-t border-slate-200">
+                            <input type="text" id="variant-name-${group.id}" placeholder="玩法名稱" class="flex-1 w-0 px-2 py-1 bg-white border border-slate-300 rounded text-xs">
+                            <input type="number" id="variant-rtp-${group.id}" placeholder="RTP (%)" class="flex-1 w-0 px-2 py-1 bg-white border border-slate-300 rounded text-xs">
+                            <input type="number" id="variant-value-${group.id}" placeholder="CV 值" class="flex-1 w-0 px-2 py-1 bg-white border border-slate-300 rounded text-xs">
+                            <button class="bg-indigo-500 text-white px-2 py-1 rounded hover:bg-indigo-600 text-xs" onclick="addGoldenCvVariant('${group.id}')">新增</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderGoldenCvGroupSelect(groups) {
+            const selects = [goldenCvGroupSelect, estimatorGroupSelect];
+            selects.forEach(select => {
+                select.innerHTML = '<option value="">選用群組</option>';
+                groups.forEach(group => {
+                    const option = document.createElement('option');
+                    option.value = group.id;
+                    option.textContent = group.name;
+                    select.appendChild(option);
+                });
+            });
+        }
+        
+        function renderGoldenCvVariantSelect(groupId, variantSelect = goldenCvVariantSelect) {
+            variantSelect.innerHTML = '<option value="">選用玩法</option>';
+            if (!groupId) return;
+            const group = goldenCvData.find(g => g.id === groupId);
+            if (group && group.variants) {
+                group.variants.forEach((variant, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = variant.name;
+                    variantSelect.appendChild(option);
+                });
+            }
+        }
+
+        addGoldenCvGroupBtn.addEventListener('click', async () => {
+            const name = goldenCvGroupNameInput.value.trim();
+            if (!name) {
+                alert('請輸入遊戲/群組名稱。');
+                return;
+            }
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const groupsCollection = collection(db, `/artifacts/${appId}/public/data/goldenCVGroups`);
+                await addDoc(groupsCollection, { name, variants: [] });
+                goldenCvGroupNameInput.value = '';
+            } catch (error) {
+                console.error("Error adding group:", error);
+                alert('新增群組失敗。請確認您是否有寫入權限。');
+            }
+        });
+
+        window.addGoldenCvVariant = async (groupId) => {
+            const nameInput = document.getElementById(`variant-name-${groupId}`);
+            const rtpInputEl = document.getElementById(`variant-rtp-${groupId}`);
+            const valueInput = document.getElementById(`variant-value-${groupId}`);
+            const name = nameInput.value.trim();
+            const rtp = parseFloat(rtpInputEl.value);
+            const value = parseFloat(valueInput.value);
+
+            if (!name || isNaN(rtp) || isNaN(value) || value < 0) {
+                alert('請輸入有效的玩法名稱、RTP 和 CV 值。');
+                return;
+            }
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const groupDocRef = doc(db, `/artifacts/${appId}/public/data/goldenCVGroups`, groupId);
+                await updateDoc(groupDocRef, {
+                    variants: arrayUnion({ name, rtp, value })
+                });
+                nameInput.value = '';
+                rtpInputEl.value = '';
+                valueInput.value = '';
+            } catch (error) {
+                console.error("Error adding variant:", error);
+                alert('新增玩法失敗。請確認您是否有寫入權限。');
+            }
+        };
+        
+        window.deleteGoldenCvGroup = async (groupId) => {
+            if (confirm('確定要刪除整個群組及其所有玩法嗎？此操作無法復原。')) {
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    await deleteDoc(doc(db, `/artifacts/${appId}/public/data/goldenCVGroups`, groupId));
+                } catch (error) {
+                    console.error("Error deleting group:", error);
+                    alert('刪除群組失敗。請確認您是否有寫入權限。');
+                }
+            }
+        };
+
+        window.deleteGoldenCvVariant = async (groupId, variantIndex) => {
+             if (confirm('確定要刪除這個玩法嗎？')) {
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const groupDocRef = doc(db, `/artifacts/${appId}/public/data/goldenCVGroups`, groupId);
+                    const groupDoc = await getDoc(groupDocRef);
+                    if (groupDoc.exists()) {
+                        const variants = groupDoc.data().variants || [];
+                        const variantToRemove = variants[variantIndex];
+                        if(variantToRemove) {
+                             await updateDoc(groupDocRef, {
+                                variants: arrayRemove(variantToRemove)
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error deleting variant:", error);
+                    alert('刪除玩法失敗。請確認您是否有寫入權限。');
+                }
+            }
+        };
+        
+        window.editGoldenCvGroup = async (groupId, currentName) => {
+            const newName = prompt('請輸入新的群組名稱:', currentName);
+            if (newName && newName.trim() !== '') {
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const groupDocRef = doc(db, `/artifacts/${appId}/public/data/goldenCVGroups`, groupId);
+                    await updateDoc(groupDocRef, { name: newName.trim() });
+                } catch (error) {
+                    console.error("Error editing group name:", error);
+                    alert('編輯群組名稱失敗。請確認您是否有寫入權限。');
+                }
+            }
+        };
+
+        window.editGoldenCvVariant = async (groupId, variantIndex) => {
+            const group = goldenCvData.find(g => g.id === groupId);
+            if (!group || !group.variants || !group.variants[variantIndex]) return;
+
+            const variant = group.variants[variantIndex];
+            const newName = prompt('請輸入新的玩法名稱:', variant.name);
+            if (newName === null) return;
+            const newRtp = prompt('請輸入新的理論 RTP (%):', variant.rtp);
+            if (newRtp === null) return;
+            const newCv = prompt('請輸入新的基準 CV:', variant.value);
+            if (newCv === null) return;
+
+            const parsedRtp = parseFloat(newRtp);
+            const parsedCv = parseFloat(newCv);
+
+            if (newName.trim() && !isNaN(parsedRtp) && !isNaN(parsedCv) && parsedCv >= 0) {
+                try {
+                    const updatedVariants = [...group.variants];
+                    updatedVariants[variantIndex] = { name: newName.trim(), rtp: parsedRtp, value: parsedCv };
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const groupDocRef = doc(db, `/artifacts/${appId}/public/data/goldenCVGroups`, groupId);
+                    await updateDoc(groupDocRef, { variants: updatedVariants });
+                } catch (error) {
+                    console.error("Error editing variant:", error);
+                    alert('編輯玩法失敗。請確認您是否有寫入權限。');
+                }
+            } else {
+                alert('輸入的資料無效，請確認所有欄位都已正確填寫。');
+            }
+        };
+
+        window.toggleCvGroup = (groupId) => {
+            const content = document.getElementById(`content-${groupId}`);
+            const chevron = document.getElementById(`chevron-${groupId}`);
+            content.classList.toggle('hidden');
+            chevron.classList.toggle('rotate-180');
+        };
+
+        goldenCvGroupSelect.addEventListener('change', (e) => {
+            renderGoldenCvVariantSelect(e.target.value);
+        });
+
+        goldenCvVariantSelect.addEventListener('change', (e) => {
+            const groupId = goldenCvGroupSelect.value;
+            const variantIndex = e.target.value;
+            if (groupId && variantIndex !== "") {
+                const group = goldenCvData.find(g => g.id === groupId);
+                const variant = group.variants[variantIndex];
+                if (variant) {
+                    rtpInput.value = variant.rtp;
+                    cvInput.value = variant.value;
+                    localStorage.setItem('ciCalc_lastCvGroup', groupId);
+                    localStorage.setItem('ciCalc_lastCvVariant', variantIndex);
+                }
+            } else {
+                localStorage.removeItem('ciCalc_lastCvGroup');
+                localStorage.removeItem('ciCalc_lastCvVariant');
+            }
+        });
+
+        function loadLastCvSelection() {
+            const savedGroupId = localStorage.getItem('ciCalc_lastCvGroup');
+            const savedVariantIndex = localStorage.getItem('ciCalc_lastCvVariant');
+
+            if (!savedGroupId || !savedVariantIndex) return;
+
+            const group = goldenCvData.find(g => g.id === savedGroupId);
+            if (group && group.variants && group.variants[savedVariantIndex]) {
+                goldenCvGroupSelect.value = savedGroupId;
+                renderGoldenCvVariantSelect(savedGroupId);
+                goldenCvVariantSelect.value = savedVariantIndex;
+
+                const variant = group.variants[savedVariantIndex];
+                rtpInput.value = variant.rtp;
+                cvInput.value = variant.value;
+            } else {
+                localStorage.removeItem('ciCalc_lastCvGroup');
+                localStorage.removeItem('ciCalc_lastCvVariant');
+            }
+        }
+        
+        function resetCvSelects() {
+            goldenCvGroupSelect.selectedIndex = 0;
+            renderGoldenCvVariantSelect(''); // Clear and reset variant select
+            localStorage.removeItem('ciCalc_lastCvGroup');
+            localStorage.removeItem('ciCalc_lastCvVariant');
+        }
+
+        rtpInput.addEventListener('input', resetCvSelects);
+        cvInput.addEventListener('input', resetCvSelects);
+
         // --- Utility Functions ---
         const formatNumber = (num) => {
             if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`;
@@ -194,6 +630,43 @@
             if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
             return num;
         };
+        
+        function showToast(message) {
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastNotification.textContent = message;
+            toastNotification.classList.remove('opacity-0', '-translate-y-10');
+            toastNotification.classList.add('opacity-100', 'translate-y-0');
+            toastTimeout = setTimeout(() => {
+                toastNotification.classList.remove('opacity-100', 'translate-y-0');
+                toastNotification.classList.add('opacity-0', '-translate-y-10');
+            }, 2000);
+        }
+
+        function copyToClipboard(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('已複製 ✅');
+                }).catch(err => {
+                    console.error('Async clipboard copy failed:', err);
+                });
+            } else {
+                // Fallback for older browsers
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast('已複製 ✅');
+                } catch (err) {
+                    console.error('Fallback copy failed:', err);
+                }
+                document.body.removeChild(textArea);
+            }
+        }
 
         // --- Data Management ---
         function getLocalData(key) {
@@ -412,7 +885,7 @@
 
                         if (valid) {
                             ALL_DATA_KEYS.forEach(key => {
-                                setLocalData(key, importedData[key]);
+                                setLocalData(key, importedData[key] || []);
                             });
                             renderAll();
                             alert('資料匯入成功！');
@@ -424,14 +897,91 @@
                     alert('讀取檔案失敗，請確認是否為正確的 JSON 備份檔。');
                     console.error("Import error:", error);
                 } finally {
-                    // Reset file input to allow re-importing the same file
                     event.target.value = '';
                 }
             };
             reader.readAsText(file);
         }
         
-        // --- Calculation Logic ---
+        // --- Calculation Logic & Comparison ---
+        function updateStatusDisplay(displayEl, value, intervals) {
+            if (isNaN(value) || Object.keys(intervals).length === 0) {
+                displayEl.innerHTML = '';
+                return;
+            }
+            
+            value = value / 100;
+            let statusHTML = '';
+
+            ['95%', '99%', '99.7%'].forEach(level => {
+                const interval = intervals[level];
+                let statusText = `${level}: FAIL`;
+                let statusClass = 'bg-red-100 text-red-800';
+
+                if (value >= interval.lower && value <= interval.upper) {
+                    statusText = `${level}: PASS`;
+                    statusClass = 'bg-green-100 text-green-800';
+                }
+                statusHTML += `<span class="px-3 py-1 text-sm font-semibold rounded-full ${statusClass}">${statusText}</span>`;
+            });
+            
+            displayEl.innerHTML = statusHTML;
+        }
+
+        function renderComparisonChart(containerEl, intervals, actualValue, centerValue) {
+            containerEl.innerHTML = '';
+            if (isNaN(actualValue) || !intervals['95%']) return;
+
+            actualValue /= 100;
+
+            const ci997 = intervals['99.7%'];
+            const ci95 = intervals['95%'];
+            
+            const range = ci997.upper - ci997.lower;
+            if (range === 0) { 
+                containerEl.innerHTML = '<p class="text-center text-sm text-slate-500">信賴區間寬度為零，無法繪製圖表。</p>';
+                return;
+            }
+
+            const scaleMin = ci997.lower - range * 0.2;
+            const scaleMax = ci997.upper + range * 0.2;
+            const scaleRange = scaleMax - scaleMin;
+
+            const toPercentPos = (val) => Math.max(0, Math.min(100, ((val - scaleMin) / scaleRange) * 100));
+
+            const actualPos = toPercentPos(actualValue);
+            const centerPos = toPercentPos(centerValue);
+
+            const isRtpChart = containerEl.id.includes('rtp');
+            const colorClass = isRtpChart ? 'sky' : 'emerald';
+            const markerOverlap = Math.abs(actualPos - centerPos) < 6;
+
+            containerEl.innerHTML = `
+                <div class="relative w-full h-20 pt-10 text-center">
+                    <!-- Ranges -->
+                    <div class="absolute top-1/2 w-full h-0.5 bg-slate-300"></div>
+                    <div class="absolute top-1/2 -translate-y-1/2 h-3 bg-${colorClass}-100 rounded-full" style="left: ${toPercentPos(ci997.lower)}%; width: ${toPercentPos(ci997.upper) - toPercentPos(ci997.lower)}%;"></div>
+                    <div class="absolute top-1/2 -translate-y-1/2 h-3 bg-${colorClass}-300 rounded-full" style="left: ${toPercentPos(ci95.lower)}%; width: ${toPercentPos(ci95.upper) - toPercentPos(ci95.lower)}%;"></div>
+                    
+                    <!-- Center Value (Theoretical RTP or Sample Hit Rate) -->
+                    <div class="absolute top-1/2 -translate-x-1/2" style="left: ${centerPos}%;">
+                        <div class="w-2 h-2 bg-slate-600 rounded-full -mt-0.5"></div>
+                        <span class="absolute left-1/2 -translate-x-1/2 mt-1 text-xs text-slate-600 font-semibold whitespace-nowrap">${(centerValue * 100).toFixed(2)}%</span>
+                    </div>
+
+                    <!-- Actual Value Marker -->
+                    <div class="absolute -translate-x-1/2" style="left: ${actualPos}%; top: ${markerOverlap ? '85%' : '50%'}">
+                        <div class="w-0.5 h-4 bg-red-500 mx-auto"></div>
+                        <span class="absolute left-1/2 -translate-x-1/2 mt-1 text-xs text-red-500 font-bold whitespace-nowrap">${(actualValue * 100).toFixed(2)}%</span>
+                    </div>
+
+                    <!-- Labels for 95% CI -->
+                    <div class="absolute top-full text-xs text-slate-500 -translate-x-1/2" style="left: ${toPercentPos(ci95.lower)}%;">${(ci95.lower * 100).toFixed(2)}%</div>
+                    <div class="absolute top-full text-xs text-slate-500 -translate-x-1/2" style="left: ${toPercentPos(ci95.upper)}%;">${(ci95.upper * 100).toFixed(2)}%</div>
+                </div>
+            `;
+        }
+
         calculateRtpBtn.addEventListener('click', () => {
             const n = parseFloat(rtpSimulationsInput.value);
             const rtpVal = parseFloat(rtpInput.value);
@@ -441,6 +991,7 @@
                 rtpErrorMessageDiv.textContent = '請為 RTP 計算輸入有效的正數值。';
                 rtpErrorMessageDiv.classList.remove('hidden');
                 rtpResultsDiv.innerHTML = '';
+                rtpComparisonSection.classList.add('hidden');
                 return;
             }
             rtpErrorMessageDiv.classList.add('hidden');
@@ -453,10 +1004,18 @@
             const stdError = stdDev / Math.sqrt(n);
 
             rtpResultsDiv.innerHTML = '';
+            rtpIntervals = {};
             Object.entries(zScores).forEach(([level, zScore], index) => {
                 const marginOfError = zScore * stdError;
-                displayResultCard(rtpResultsDiv, level, zScore, rtp - marginOfError, rtp + marginOfError, rtpLevelColors, index, "模擬結果");
+                const lowerBound = rtp - marginOfError;
+                const upperBound = rtp + marginOfError;
+                rtpIntervals[level] = { lower: lowerBound, upper: upperBound };
+                displayResultCard(rtpResultsDiv, level, zScore, lowerBound, upperBound, rtpLevelColors, index, "模擬結果");
             });
+            rtpComparisonSection.classList.remove('hidden');
+            const actualRtpValue = parseFloat(actualRtpInput.value);
+            updateStatusDisplay(rtpStatusDisplay, actualRtpValue, rtpIntervals);
+            renderComparisonChart(rtpChartContainer, rtpIntervals, actualRtpValue, rtp);
         });
 
         function calculateWilsonScore(k, n, z) {
@@ -479,6 +1038,7 @@
                 hitRateErrorMessageDiv.textContent = '請為命中率計算輸入有效數值 (n > 0, 0 <= k <= n)。';
                 hitRateErrorMessageDiv.classList.remove('hidden');
                 hitRateResultsDiv.innerHTML = '';
+                hitRateComparisonSection.classList.add('hidden');
                 return;
             }
             hitRateErrorMessageDiv.classList.add('hidden');
@@ -487,10 +1047,112 @@
             renderHitRateHistory();
 
             hitRateResultsDiv.innerHTML = '';
+            hitRateIntervals = {};
             Object.entries(zScores).forEach(([level, zScore], index) => {
                 const { lower, upper } = calculateWilsonScore(k, n, zScore);
+                hitRateIntervals[level] = { lower, upper };
                 displayResultCard(hitRateResultsDiv, level, zScore, lower, upper, hitRateLevelColors, index, "真實理論值");
             });
+            hitRateComparisonSection.classList.remove('hidden');
+            const theoreticalHitRateValue = parseFloat(theoreticalHitRateInput.value);
+            updateStatusDisplay(hitRateStatusDisplay, theoreticalHitRateValue, hitRateIntervals);
+            renderComparisonChart(hitRateChartContainer, hitRateIntervals, theoreticalHitRateValue, k / n);
+        });
+
+        actualRtpInput.addEventListener('input', (e) => {
+            const actualRtpValue = parseFloat(e.target.value);
+            const centerVal = parseFloat(rtpInput.value) / 100;
+            updateStatusDisplay(rtpStatusDisplay, actualRtpValue, rtpIntervals);
+            renderComparisonChart(rtpChartContainer, rtpIntervals, actualRtpValue, centerVal);
+        });
+        theoreticalHitRateInput.addEventListener('input', (e) => {
+            const theoreticalHitRateValue = parseFloat(e.target.value);
+            const centerVal = parseFloat(hitsInput.value) / parseFloat(hitRateSpinsInput.value);
+            updateStatusDisplay(hitRateStatusDisplay, theoreticalHitRateValue, hitRateIntervals);
+            renderComparisonChart(hitRateChartContainer, hitRateIntervals, theoreticalHitRateValue, centerVal);
+        });
+        
+        copyRtpReportBtn.addEventListener('click', () => {
+            const resultText = ['95%', '99%', '99.7%'].map(level => {
+                const interval = rtpIntervals[level];
+                const value = parseFloat(actualRtpInput.value) / 100;
+                const status = (value >= interval.lower && value <= interval.upper) ? 'PASS' : 'FAIL';
+                return `- ${level}: ${status}`;
+            }).join('\n');
+
+            const report = `
+RTP 驗證報告
+--------------------
+[輸入參數]
+- 總模擬次數 (n): ${rtpSimulationsInput.value}
+- 理論 RTP (%): ${rtpInput.value}
+- 理論/基準 CV: ${cvInput.value}
+- 實際模擬 RTP (%): ${actualRtpInput.value}
+--------------------
+[信賴區間]
+- 95%: ${(rtpIntervals['95%'].lower * 100).toFixed(4)}% ~ ${(rtpIntervals['95%'].upper * 100).toFixed(4)}%
+- 99%: ${(rtpIntervals['99%'].lower * 100).toFixed(4)}% ~ ${(rtpIntervals['99%'].upper * 100).toFixed(4)}%
+- 99.7%: ${(rtpIntervals['99.7%'].lower * 100).toFixed(4)}% ~ ${(rtpIntervals['99.7%'].upper * 100).toFixed(4)}%
+--------------------
+[驗證結果]
+${resultText}
+            `;
+            copyToClipboard(report.trim());
+        });
+        
+        copyHitRateReportBtn.addEventListener('click', () => {
+            const resultText = ['95%', '99%', '99.7%'].map(level => {
+                const interval = hitRateIntervals[level];
+                const value = parseFloat(theoreticalHitRateInput.value) / 100;
+                const status = (value >= interval.lower && value <= interval.upper) ? 'PASS' : 'FAIL';
+                return `- ${level}: ${status}`;
+            }).join('\n');
+
+            const report = `
+命中率 驗證報告
+--------------------
+[輸入參數]
+- 模擬命中次數 (k): ${hitsInput.value}
+- 模擬總次數 (n): ${hitRateSpinsInput.value}
+- 理論命中率 (%): ${theoreticalHitRateInput.value}
+--------------------
+[信賴區間]
+- 95%: ${(hitRateIntervals['95%'].lower * 100).toFixed(4)}% ~ ${(hitRateIntervals['95%'].upper * 100).toFixed(4)}%
+- 99%: ${(hitRateIntervals['99%'].lower * 100).toFixed(4)}% ~ ${(hitRateIntervals['99%'].upper * 100).toFixed(4)}%
+- 99.7%: ${(hitRateIntervals['99.7%'].lower * 100).toFixed(4)}% ~ ${(hitRateIntervals['99.7%'].upper * 100).toFixed(4)}%
+--------------------
+[驗證結果]
+${resultText}
+            `;
+            copyToClipboard(report.trim());
+        });
+
+        calculateSimsBtn.addEventListener('click', () => {
+            const rtp = parseFloat(estimatorRtpInput.value);
+            const cv = parseFloat(estimatorCvInput.value);
+            const z = parseFloat(estimatorConfidenceSelect.value);
+            const error = parseFloat(estimatorErrorInput.value);
+
+            if (isNaN(rtp) || isNaN(cv) || isNaN(z) || isNaN(error) || cv <=0 || error <= 0) {
+                estimatorResultDiv.textContent = '請輸入有效的正數值。';
+                estimatorResultDiv.classList.remove('hidden', 'bg-purple-50', 'text-purple-800');
+                estimatorResultDiv.classList.add('bg-red-100', 'text-red-800');
+                return;
+            }
+            
+            localStorage.setItem('ciCalc_estimatorRtp', rtp);
+            localStorage.setItem('ciCalc_estimatorCv', cv);
+            localStorage.setItem('ciCalc_estimatorConfidence', z);
+            localStorage.setItem('ciCalc_estimatorError', error);
+
+            const rtpDecimal = rtp / 100;
+            const errorDecimal = error / 100;
+            const sigma = rtpDecimal * cv;
+            const n = Math.pow((z * sigma) / errorDecimal, 2);
+            
+            estimatorResultDiv.innerHTML = `為達到 <strong class="font-bold">±${error}%</strong> 的精準度，<br>建議至少執行 <strong class="font-bold">${Math.ceil(n).toLocaleString('en-US')}</strong> 次模擬。`;
+            estimatorResultDiv.classList.remove('hidden', 'bg-red-100', 'text-red-800');
+            estimatorResultDiv.classList.add('bg-purple-50', 'text-purple-800');
         });
 
         function displayResultCard(container, level, zScore, lowerBound, upperBound, colors, delayIndex, subject) {
@@ -525,8 +1187,87 @@
             renderHitRateBookmarks();
         }
 
+        estimatorGroupSelect.addEventListener('change', (e) => {
+            renderGoldenCvVariantSelect(e.target.value, estimatorVariantSelect);
+        });
+
+        estimatorVariantSelect.addEventListener('change', (e) => {
+            const groupId = estimatorGroupSelect.value;
+            const variantIndex = e.target.value;
+            if (groupId && variantIndex !== "") {
+                const group = goldenCvData.find(g => g.id === groupId);
+                const variant = group.variants[variantIndex];
+                if (variant) {
+                    estimatorRtpInput.value = variant.rtp;
+                    estimatorCvInput.value = variant.value;
+                    localStorage.setItem('ciCalc_lastEstimatorGroup', groupId);
+                    localStorage.setItem('ciCalc_lastEstimatorVariant', variantIndex);
+                }
+            } else {
+                localStorage.removeItem('ciCalc_lastEstimatorGroup');
+                localStorage.removeItem('ciCalc_lastEstimatorVariant');
+            }
+            updateErrorSuggestion();
+        });
+        
+        function loadLastEstimatorSelection() {
+            const savedGroupId = localStorage.getItem('ciCalc_lastEstimatorGroup');
+            const savedVariantIndex = localStorage.getItem('ciCalc_lastEstimatorVariant');
+
+            if (!savedGroupId || !savedVariantIndex) return;
+
+            const group = goldenCvData.find(g => g.id === savedGroupId);
+            if (group && group.variants && group.variants[savedVariantIndex]) {
+                estimatorGroupSelect.value = savedGroupId;
+                renderGoldenCvVariantSelect(savedGroupId, estimatorVariantSelect);
+                estimatorVariantSelect.value = savedVariantIndex;
+
+                const variant = group.variants[savedVariantIndex];
+                estimatorRtpInput.value = variant.rtp;
+                estimatorCvInput.value = variant.value;
+            } else {
+                localStorage.removeItem('ciCalc_lastEstimatorGroup');
+                localStorage.removeItem('ciCalc_lastEstimatorVariant');
+            }
+        }
+
+        function resetEstimatorSelects() {
+            estimatorGroupSelect.selectedIndex = 0;
+            renderGoldenCvVariantSelect('', estimatorVariantSelect);
+            localStorage.removeItem('ciCalc_lastEstimatorGroup');
+            localStorage.removeItem('ciCalc_lastEstimatorVariant');
+        }
+
+        function suggestMargin(cv) {
+            if (cv <= 0.8) return 0.3;
+            if (cv <= 1.5) return 0.5;
+            if (cv <= 2.5) return 0.7;
+            return 1.0;
+        }
+
+        function updateErrorSuggestion() {
+            const cv = parseFloat(estimatorCvInput.value);
+            if (!isNaN(cv) && cv > 0) {
+                const suggested = suggestMargin(cv);
+                estimatorErrorInput.value = suggested;
+                estimatorErrorSuggestion.textContent = `(建議值: ${suggested}%)`;
+            } else {
+                estimatorErrorSuggestion.textContent = '';
+            }
+        }
+
+        estimatorRtpInput.addEventListener('input', resetEstimatorSelects);
+        estimatorCvInput.addEventListener('input', () => {
+            resetEstimatorSelects();
+            updateErrorSuggestion();
+        });
+
+
         // --- Initialization ---
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            await setupFirebase();
+
+            // Load local history
             const lastRtp = getLocalData('ciCalc_rtpHistory')[0];
             if (lastRtp) {
                 rtpSimulationsInput.value = lastRtp.n;
@@ -539,11 +1280,19 @@
                 hitsInput.value = lastHitRate.k;
                 hitRateSpinsInput.value = lastHitRate.n;
             }
+
+            // Load estimator history
+            estimatorRtpInput.value = localStorage.getItem('ciCalc_estimatorRtp') || '96.5';
+            estimatorCvInput.value = localStorage.getItem('ciCalc_estimatorCv') || '5.5';
+            estimatorConfidenceSelect.value = localStorage.getItem('ciCalc_estimatorConfidence') || '1.96';
+            estimatorErrorInput.value = localStorage.getItem('ciCalc_estimatorError') || '0.1';
+            updateErrorSuggestion();
             
             renderAll();
 
             calculateRtpBtn.click();
             calculateHitRateBtn.click();
+            calculateSimsBtn.click();
         });
     </script>
 </body>
