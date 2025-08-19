@@ -94,10 +94,14 @@
                             </div>
                         </div>
                     </div>
-                    <div class="text-center mb-6">
-                        <button id="calculateRtpBtn" class="w-full md:w-auto bg-sky-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-sky-700 active:scale-95 transition-transform duration-150 shadow-md hover:shadow-lg">
+                    <div class="flex items-center justify-center gap-4 mb-6">
+                        <button id="calculateRtpBtn" class="bg-sky-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-sky-700 active:scale-95 transition-transform duration-150 shadow-md hover:shadow-lg">
                             計算 RTP 區間
                         </button>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="auto-calc-rtp" class="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500">
+                            <label for="auto-calc-rtp" class="ml-2 text-sm text-slate-600">自動計算</label>
+                        </div>
                     </div>
                     <div id="rtp-error-message" class="text-center text-red-500 font-medium mb-4 hidden"></div>
                     <div id="rtp-results" class="space-y-3"></div>
@@ -151,8 +155,12 @@
                             <input type="number" id="estimator-error" value="0.1" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg">
                         </div>
                     </div>
-                    <div class="text-center mb-6">
-                        <button id="calculate-sims-btn" class="w-full md:w-auto bg-purple-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-purple-700 active:scale-95 transition-transform duration-150">估算所需次數</button>
+                    <div class="flex items-center justify-center gap-4 mb-6">
+                        <button id="calculate-sims-btn" class="bg-purple-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-purple-700 active:scale-95 transition-transform duration-150">估算所需次數</button>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="auto-calc-estimator" class="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+                            <label for="auto-calc-estimator" class="ml-2 text-sm text-slate-600">自動計算</label>
+                        </div>
                     </div>
                     <div id="estimator-result" class="text-center p-4 bg-purple-50 text-purple-800 rounded-lg font-medium text-lg hidden"></div>
                 </div>
@@ -173,10 +181,14 @@
                             <input type="number" id="hit-rate-spins" value="10000000" class="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition">
                         </div>
                     </div>
-                    <div class="text-center mb-6">
-                        <button id="calculateHitRateBtn" class="w-full md:w-auto bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-emerald-700 active:scale-95 transition-transform duration-150 shadow-md hover:shadow-lg">
+                    <div class="flex items-center justify-center gap-4 mb-6">
+                        <button id="calculateHitRateBtn" class="bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-emerald-700 active:scale-95 transition-transform duration-150 shadow-md hover:shadow-lg">
                             計算命中率區間
                         </button>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="auto-calc-hitrate" class="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                            <label for="auto-calc-hitrate" class="ml-2 text-sm text-slate-600">自動計算</label>
+                        </div>
                     </div>
                     <div id="hit-rate-error-message" class="text-center text-red-500 font-medium mb-4 hidden"></div>
                     <div id="hit-rate-results" class="space-y-3"></div>
@@ -220,9 +232,21 @@
 
                 <hr class="my-6 border-slate-300 border-dashed">
                 
-                <!-- History & Bookmarks Section -->
+                <!-- Bookmarks Section -->
                 <div>
-                     <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center">本機紀錄</h2>
+                    <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center">書籤紀錄</h2>
+                    <h3 class="font-semibold text-slate-600 mb-2">RTP 書籤</h3>
+                    <div id="rtp-bookmarks" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
+                    <hr class="my-4 border-slate-200">
+                    <h3 class="font-semibold text-slate-600 mb-2">命中率書籤</h3>
+                    <div id="hit-rate-bookmarks" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
+                </div>
+
+                <hr class="my-6 border-slate-300 border-dashed">
+
+                <!-- History Section -->
+                <div>
+                     <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center">歷史紀錄</h2>
                      <div class="flex justify-between items-center mb-2">
                         <h3 class="font-semibold text-slate-600">RTP 紀錄</h3>
                         <button class="history-btn" title="清除所有紀錄" onclick="clearHistory('ciCalc_rtpHistory')">
@@ -238,12 +262,6 @@
                         </button>
                     </div>
                     <div id="hit-rate-history" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
-                    <hr class="my-4 border-slate-200">
-                    <h3 class="font-semibold text-slate-600 mb-2">RTP 書籤</h3>
-                    <div id="rtp-bookmarks" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
-                    <hr class="my-4 border-slate-200">
-                    <h3 class="font-semibold text-slate-600 mb-2">命中率書籤</h3>
-                    <div id="hit-rate-bookmarks" class="max-h-40 overflow-y-auto space-y-2 pr-2"></div>
                 </div>
 
                 <hr class="my-6 border-slate-300 border-dashed">
@@ -301,6 +319,7 @@
         const goldenCvListDiv = document.getElementById('golden-cv-list');
         const goldenCvControlsDiv = document.getElementById('golden-cv-controls');
         const copyRtpReportBtn = document.getElementById('copy-rtp-report-btn');
+        const autoCalcRtpCheckbox = document.getElementById('auto-calc-rtp');
 
         const hitsInput = document.getElementById('hits');
         const hitRateSpinsInput = document.getElementById('hit-rate-spins');
@@ -314,6 +333,7 @@
         const hitRateStatusDisplay = document.getElementById('hit-rate-status-display');
         const hitRateChartContainer = document.getElementById('hit-rate-chart-container');
         const copyHitRateReportBtn = document.getElementById('copy-hit-rate-report-btn');
+        const autoCalcHitRateCheckbox = document.getElementById('auto-calc-hitrate');
         const toastNotification = document.getElementById('toast-notification');
 
         const estimatorRtpInput = document.getElementById('estimator-rtp');
@@ -325,6 +345,7 @@
         const estimatorGroupSelect = document.getElementById('estimator-group-select');
         const estimatorVariantSelect = document.getElementById('estimator-variant-select');
         const estimatorErrorSuggestion = document.getElementById('estimator-error-suggestion');
+        const autoCalcEstimatorCheckbox = document.getElementById('auto-calc-estimator');
 
         const authSection = document.getElementById('auth-section');
         const googleLoginBtn = document.getElementById('google-login-btn');
@@ -1040,7 +1061,7 @@
             `;
         }
 
-        calculateRtpBtn.addEventListener('click', () => {
+        function performRtpCalculation() {
             const n = parseFloat(rtpSimulationsInput.value);
             const rtpVal = parseFloat(rtpInput.value);
             const cv = parseFloat(cvInput.value);
@@ -1074,7 +1095,9 @@
             const actualRtpValue = parseFloat(actualRtpInput.value);
             updateStatusDisplay(rtpStatusDisplay, actualRtpValue, rtpIntervals);
             renderComparisonChart(rtpChartContainer, rtpIntervals, actualRtpValue, rtp);
-        });
+        }
+        calculateRtpBtn.addEventListener('click', performRtpCalculation);
+
 
         function calculateWilsonScore(k, n, z) {
             if (n === 0) return { lower: 0, upper: 0 };
@@ -1088,7 +1111,7 @@
             return { lower: Math.max(0, lower), upper: Math.min(1, upper) };
         }
 
-        calculateHitRateBtn.addEventListener('click', () => {
+        function performHitRateCalculation() {
             const k = parseFloat(hitsInput.value);
             const n = parseFloat(hitRateSpinsInput.value);
 
@@ -1115,7 +1138,9 @@
             const theoreticalHitRateValue = parseFloat(theoreticalHitRateInput.value);
             updateStatusDisplay(hitRateStatusDisplay, theoreticalHitRateValue, hitRateIntervals);
             renderComparisonChart(hitRateChartContainer, hitRateIntervals, theoreticalHitRateValue, k / n);
-        });
+        }
+        calculateHitRateBtn.addEventListener('click', performHitRateCalculation);
+
 
         actualRtpInput.addEventListener('input', (e) => {
             const actualRtpValue = parseFloat(e.target.value);
@@ -1185,7 +1210,7 @@ ${resultText}
             copyToClipboard(report.trim());
         });
 
-        calculateSimsBtn.addEventListener('click', () => {
+        function performEstimatorCalculation() {
             const rtp = parseFloat(estimatorRtpInput.value);
             const cv = parseFloat(estimatorCvInput.value);
             const z = parseFloat(estimatorConfidenceSelect.value);
@@ -1211,7 +1236,8 @@ ${resultText}
             estimatorResultDiv.innerHTML = `為達到 <strong class="font-bold">±${error}%</strong> 的精準度，<br>建議至少執行 <strong class="font-bold">${Math.ceil(n).toLocaleString('en-US')}</strong> 次模擬。`;
             estimatorResultDiv.classList.remove('hidden', 'bg-red-100', 'text-red-800');
             estimatorResultDiv.classList.add('bg-purple-50', 'text-purple-800');
-        });
+        }
+        calculateSimsBtn.addEventListener('click', performEstimatorCalculation);
 
         function displayResultCard(container, level, zScore, lowerBound, upperBound, colors, delayIndex, subject) {
             const card = document.createElement('div');
@@ -1320,6 +1346,17 @@ ${resultText}
             updateErrorSuggestion();
         });
 
+        // --- Auto-calculation Setup ---
+        function setupAutoCalculation(inputs, checkbox, calculationFn) {
+            inputs.forEach(input => {
+                const eventType = input.tagName.toLowerCase() === 'select' ? 'change' : 'input';
+                input.addEventListener(eventType, () => {
+                    if (checkbox.checked) {
+                        calculationFn();
+                    }
+                });
+            });
+        }
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', async () => {
@@ -1345,6 +1382,21 @@ ${resultText}
             estimatorConfidenceSelect.value = localStorage.getItem('ciCalc_estimatorConfidence') || '1.96';
             estimatorErrorInput.value = localStorage.getItem('ciCalc_estimatorError') || '0.1';
             updateErrorSuggestion();
+            
+            // Load checkbox states
+            autoCalcRtpCheckbox.checked = localStorage.getItem('ciCalc_autoCalcRtp') === 'true';
+            autoCalcEstimatorCheckbox.checked = localStorage.getItem('ciCalc_autoCalcEstimator') === 'true';
+            autoCalcHitRateCheckbox.checked = localStorage.getItem('ciCalc_autoCalcHitRate') === 'true';
+
+            // Setup event listeners for auto-calc
+            setupAutoCalculation([rtpSimulationsInput, rtpInput, cvInput, goldenCvGroupSelect, goldenCvVariantSelect], autoCalcRtpCheckbox, performRtpCalculation);
+            setupAutoCalculation([estimatorRtpInput, estimatorCvInput, estimatorConfidenceSelect, estimatorErrorInput, estimatorGroupSelect, estimatorVariantSelect], autoCalcEstimatorCheckbox, performEstimatorCalculation);
+            setupAutoCalculation([hitsInput, hitRateSpinsInput], autoCalcHitRateCheckbox, performHitRateCalculation);
+
+            // Add listeners to save checkbox state on change
+            autoCalcRtpCheckbox.addEventListener('change', (e) => localStorage.setItem('ciCalc_autoCalcRtp', e.target.checked));
+            autoCalcEstimatorCheckbox.addEventListener('change', (e) => localStorage.setItem('ciCalc_autoCalcEstimator', e.target.checked));
+            autoCalcHitRateCheckbox.addEventListener('change', (e) => localStorage.setItem('ciCalc_autoCalcHitRate', e.target.checked));
             
             renderAll();
 
