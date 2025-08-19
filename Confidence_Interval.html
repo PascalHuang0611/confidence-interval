@@ -66,6 +66,9 @@
                 <div class="text-center mb-6">
                     <h1 class="text-2xl md:text-3xl font-bold text-slate-900">遊戲數據信賴區間計算機</h1>
                     <p class="text-slate-500 mt-2">計算 RTP 與命中率的理論合理範圍。</p>
+                    <a href="https://drive.google.com/file/d/1fOPL-WDauww8IaSiGLnyDCCTdK83XULF/view?usp=sharing" target="_blank" rel="noopener noreferrer" class="text-sm text-sky-600 hover:underline mt-1 inline-block">
+                        查看使用說明
+                    </a>
                 </div>
 
                 <!-- RTP Calculator -->
@@ -366,7 +369,7 @@
         const hitRateLevelColors = { '95%': 'border-emerald-500', '99%': 'border-teal-500', '99.7%': 'border-cyan-500' };
         const MAX_HISTORY = 100;
         const ALL_DATA_KEYS = ['ciCalc_rtpHistory', 'ciCalc_hitRateHistory', 'ciCalc_rtpBookmarks', 'ciCalc_hitRateBookmarks'];
-        const ADMIN_EMAILS = ['a4568245682@gmail.com', 'another.admin@your-company.com']; // <-- 請在此處設定管理員的 Google Email
+        const ADMIN_EMAILS = ['a4568245682@gmail.com']; // <-- 請在此處設定管理員的 Google Email
 
         // --- Firebase Setup ---
         async function setupFirebase() {
@@ -447,7 +450,7 @@
         // --- Golden CV Management ---
         function renderGoldenCvList(groups) {
             const isAdmin = auth && auth.currentUser && ADMIN_EMAILS.includes(auth.currentUser.email);
-            goldenCvListDiv.innerHTML = groups.length === 0
+            goldenCvListDiv.innerHTML = groups.length === 0 
                 ? '<p class="text-sm text-slate-400 text-center">尚無共享基準</p>'
                 : groups.map(group => `
                 <div class="p-2 rounded-md border border-slate-200 bg-slate-50">
@@ -820,7 +823,7 @@
         
         function renderRtpBookmarks() {
             const bookmarks = getLocalData('ciCalc_rtpBookmarks');
-            rtpBookmarksDiv.innerHTML = bookmarks.length === 0
+            rtpBookmarksDiv.innerHTML = bookmarks.length === 0 
                 ? '<p class="text-sm text-slate-400 text-center">尚無書籤</p>'
                 : bookmarks.map((item, index) => `
                 <div class="history-item-base p-2 rounded-md border border-slate-200 flex justify-between items-center">
@@ -838,7 +841,7 @@
 
         function renderHitRateBookmarks() {
             const bookmarks = getLocalData('ciCalc_hitRateBookmarks');
-            hitRateBookmarksDiv.innerHTML = bookmarks.length === 0
+            hitRateBookmarksDiv.innerHTML = bookmarks.length === 0 
                 ? '<p class="text-sm text-slate-400 text-center">尚無書籤</p>'
                 : bookmarks.map((item, index) => `
                 <div class="history-item-base p-2 rounded-md border border-slate-200 flex justify-between items-center">
