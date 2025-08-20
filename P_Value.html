@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互動式P-value分析工具</title>
+    <!-- 引入 Tailwind CSS 以美化介面 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 SheetJS (xlsx.js) 用於讀取 Excel 檔案 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- 更新：引入新版本的 Plotly.js 以解決警告訊息 -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <!-- 引入 jStat.js 用於統計計算 -->
+    <script src="https://cdn.jsdelivr.net/npm/jstat@latest/dist/jstat.min.js"></script>
+    <style>
+        /* 增加一些客製化樣式 */
+        body { font-family: 'Inter', 'Microsoft JhengHei', sans-serif; }
+        .control-panel { transition: all 0.3s ease-in-out; }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* 新增：互動式列表的樣式 */
+        .result-row:hover {
+            background-color: #eff6ff; /* 淺藍色背景 */
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 sm:p-6 md:p-8">
+    <div class="max-w-5xl mx-auto bg-white rounded-2xl shadow-lg p-6 sm:p-8">
+        
+        <!-- 標題區 -->
+        <div class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-900">互動式 P-value 滑動窗口分析工具</h1>
+            <p class="text-gray-600 mt-2">上傳您的 Excel 數據，選擇參數，即時生成分析圖表。</p>
+        </div>
+
+        <!-- 步驟一：上傳檔案 -->
+        <div class="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-6 text-center mb-6">
+            <h2 class="text-xl font-semibold mb-3">步驟 1: 上傳 Excel 檔案</h2>
+            <input type="file" id="fileUploader" class="mx-auto block w-full max-w-xs text-sm text-gray-500
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-50 file:text-blue-700
+                hover:file:bg-blue-100" accept=".xlsx, .xls">
+            <p id="fileStatus" class="mt-4 text-sm text-green-600 font-medium"></p>
+        </div>
+
+        <!-- 新增：整體數據摘要區 -->
+        <div id="overallStatsContainer" class="mt-6 hidden"></div>
+
+        <!-- 步驟二：分析設定 (預設隱藏) -->
+        <div id="controlPanel" class="control-panel bg-gray-50 rounded-xl p-6 mb-6 hidden">
+            <h2 class="text-xl font-semibold mb-4 text-center">步驟 2: 設定滑動窗口分析參數</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <label for="columnSelect" class="block text-sm font-medium text-gray-700 mb-1">選擇分析輪次:</label>
+                    <select id="columnSelect" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"></select>
+                </div>
+                <div>
+                    <label for="numberSelect" class="block text-sm font-medium text-gray-700 mb-1">選擇分析號碼:</label>
+                    <select id="numberSelect" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <!-- 號碼選項會由 JS 動態生成 -->
+                    </select>
+                </div>
+                <div>
+                    <label for="windowSize" class="block text-sm font-medium text-gray-700 mb-1">窗口大小 (筆數):</label>
+                    <input type="number" id="windowSize" value="100" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <!-- 新增：顯著水準輸入框 -->
+                <div>
+                    <label for="significanceLevel" class="block text-sm font-medium text-gray-700 mb-1">顯著水準 (P-value):</label>
+                    <input type="number" id="significanceLevel" value="0.05" step="0.01" min="0.001" max="1" class="w-full p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+            <div class="mt-6 text-center">
+                <button id="runAnalysis" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-700 transition duration-300 shadow-md">
+                    開始分析
+                </button>
+            </div>
+        </div>
+        
+        <!-- 結果顯示區 -->
+        <div id="resultArea" class="mt-6">
+            <div id="loader" class="loader mx-auto my-8 hidden"></div>
+            <div id="chart" class="w-full h-[500px]"></div>
+            
+            <!-- 顯著結果列表容器 -->
+            <div id="significantResultsContainer" class="mt-6 hidden">
+                <h3 class="text-lg font-semibold text-center mb-2">顯著 P-value 區間列表 (點擊可跳轉)</h3>
+                <div class="max-h-64 overflow-y-auto border border-gray-200 rounded-lg shadow-inner">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">窗口起始 Index</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">P-value</th>
+                            </tr>
+                        </thead>
+                        <tbody id="significantResultsBody" class="bg-white divide-y divide-gray-200">
+                            <!-- 結果會由 JS 動態插入此處 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 總結文字 (已移至列表下方) -->
+            <div id="resultSummary" class="text-center mt-4 text-gray-600"></div>
+        </div>
+    </div>
+
+    <script>
+        let globalData = [];
+        const fileUploader = document.getElementById('fileUploader');
+        const fileStatus = document.getElementById('fileStatus');
+        const controlPanel = document.getElementById('controlPanel');
+        const columnSelect = document.getElementById('columnSelect');
+        const numberSelect = document.getElementById('numberSelect');
+        const windowSizeInput = document.getElementById('windowSize');
+        const significanceLevelInput = document.getElementById('significanceLevel');
+        const runAnalysisBtn = document.getElementById('runAnalysis');
+        const loader = document.getElementById('loader');
+        const chartDiv = document.getElementById('chart');
+        const resultSummary = document.getElementById('resultSummary');
+        const significantResultsContainer = document.getElementById('significantResultsContainer');
+        const significantResultsBody = document.getElementById('significantResultsBody');
+        // 新增：獲取整體摘要區的元素
+        const overallStatsContainer = document.getElementById('overallStatsContainer');
+
+        // 初始化號碼選擇下拉選單
+        const allOption = document.createElement('option');
+        allOption.value = 'ALL';
+        allOption.textContent = 'ALL (宏觀檢定)';
+        numberSelect.appendChild(allOption);
+
+        for (let i = 1; i <= 8; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = i;
+            numberSelect.appendChild(option);
+        }
+
+        // 監聽檔案上傳事件
+        fileUploader.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // 重置介面
+            fileStatus.textContent = `正在讀取檔案: ${file.name}...`;
+            overallStatsContainer.classList.add('hidden');
+            overallStatsContainer.innerHTML = '';
+            controlPanel.classList.add('hidden');
+            chartDiv.innerHTML = '';
+            resultSummary.textContent = '';
+            significantResultsContainer.classList.add('hidden');
+            significantResultsBody.innerHTML = '';
+
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    const sheetName = workbook.SheetNames.includes('10K data') ? '10K data' : workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    globalData = jsonData;
+                    
+                    const headers = Object.keys(jsonData[0]);
+                    columnSelect.innerHTML = '';
+                    headers
+                        .filter(h => h.includes('(1~8)'))
+                        .forEach(header => {
+                            const option = document.createElement('option');
+                            option.value = header;
+                            option.textContent = header;
+                            columnSelect.appendChild(option);
+                        });
+
+                    fileStatus.textContent = `✅ 檔案 "${file.name}" 讀取成功！共 ${globalData.length} 筆資料。`;
+                    
+                    // 新增：讀取成功後，立即顯示整體統計摘要
+                    displayOverallStats(globalData);
+                    
+                    controlPanel.classList.remove('hidden');
+                } catch (error) {
+                    console.error("檔案讀取錯誤:", error);
+                    fileStatus.textContent = `❌ 檔案讀取失敗，請確認檔案格式是否正確。`;
+                    fileStatus.classList.replace('text-green-600', 'text-red-600');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // 新增：顯示整體統計摘要的函式
+        function displayOverallStats(data) {
+            overallStatsContainer.innerHTML = '<h2 class="text-2xl font-bold mb-4 text-center text-gray-800">整體數據統計摘要</h2>';
+            const columnsToTest = Object.keys(data[0]).filter(h => h.includes('(1~8)'));
+            
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-1 md:grid-cols-2 gap-6';
+
+            columnsToTest.forEach(col => {
+                const totalCount = data.length;
+                const observedCounts = Array(8).fill(0);
+                data.forEach(row => {
+                    const num = row[col];
+                    if (num >= 1 && num <= 8) {
+                        observedCounts[num - 1]++;
+                    }
+                });
+
+                const expectedCount = totalCount / 8;
+                const expectedCounts = Array(8).fill(expectedCount);
+
+                let chi2Stat = 0;
+                for (let k = 0; k < 8; k++) {
+                    chi2Stat += Math.pow(observedCounts[k] - expectedCounts[k], 2) / expectedCounts[k];
+                }
+                const pValue = 1 - jStat.chisquare.cdf(chi2Stat, 7);
+
+                let tableHTML = `
+                    <div class="bg-gray-50 rounded-lg p-4 shadow">
+                        <h3 class="font-bold text-lg text-center mb-2">${col}</h3>
+                        <p class="text-center mb-3 font-mono p-2 rounded ${pValue < 0.05 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                            整體 P-value: <strong>${pValue.toFixed(6)}</strong>
+                        </p>
+                        <table class="min-w-full text-sm">
+                            <thead class="bg-gray-200">
+                                <tr>
+                                    <th class="py-2 px-2">號碼</th>
+                                    <th class="py-2 px-2">觀測次數</th>
+                                    <th class="py-2 px-2">機率 (%)</th>
+                                    <th class="py-2 px-2">期望次數</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                for (let i = 0; i < 8; i++) {
+                    const percentage = (observedCounts[i] / totalCount * 100).toFixed(2);
+                    tableHTML += `
+                        <tr class="border-b border-gray-200 text-center">
+                            <td class="py-1 px-2 font-medium">${i + 1}</td>
+                            <td class="py-1 px-2">${observedCounts[i]}</td>
+                            <td class="py-1 px-2">${percentage}%</td>
+                            <td class="py-1 px-2">${expectedCount.toFixed(2)}</td>
+                        </tr>
+                    `;
+                }
+                tableHTML += '</tbody></table></div>';
+                grid.innerHTML += tableHTML;
+            });
+            
+            overallStatsContainer.appendChild(grid);
+            overallStatsContainer.classList.remove('hidden');
+        }
+
+        // 監聽開始分析按鈕點擊事件
+        runAnalysisBtn.addEventListener('click', () => {
+            if (globalData.length === 0) {
+                alert('請先上傳 Excel 檔案！');
+                return;
+            }
+
+            loader.classList.remove('hidden');
+            chartDiv.innerHTML = '';
+            resultSummary.textContent = '';
+            significantResultsContainer.classList.add('hidden'); 
+            significantResultsBody.innerHTML = ''; 
+            
+            setTimeout(() => {
+                performAnalysis();
+            }, 50);
+        });
+        
+        // 執行分析的核心函式
+        function performAnalysis() {
+            const selectedColumn = columnSelect.value;
+            const selectedNumberMode = numberSelect.value;
+            const windowSize = parseInt(windowSizeInput.value, 10);
+            const significanceLevel = parseFloat(significanceLevelInput.value);
+
+            if (isNaN(windowSize) || windowSize <= 0) {
+                alert('窗口大小必須是正整數！');
+                loader.classList.add('hidden');
+                return;
+            }
+            if (isNaN(significanceLevel) || significanceLevel <= 0 || significanceLevel >= 1) {
+                alert('顯著水準必須是 0 到 1 之間的數字！');
+                loader.classList.add('hidden');
+                return;
+            }
+
+            const pValues = [];
+            const windowIndices = [];
+
+            if (selectedNumberMode === 'ALL') {
+                // --- 宏觀檢定邏輯 (ALL numbers) ---
+                for (let i = 0; i <= globalData.length - windowSize; i++) {
+                    const windowData = globalData.slice(i, i + windowSize);
+                    
+                    const observedCounts = Array(8).fill(0);
+                    for (const row of windowData) {
+                        const num = row[selectedColumn];
+                        if (num >= 1 && num <= 8) {
+                            observedCounts[num - 1]++;
+                        }
+                    }
+
+                    const expectedCount = windowSize / 8;
+                    if (expectedCount === 0) continue;
+                    const expectedCounts = Array(8).fill(expectedCount);
+
+                    let chi2Stat = 0;
+                    for (let k = 0; k < 8; k++) {
+                        chi2Stat += Math.pow(observedCounts[k] - expectedCounts[k], 2) / expectedCounts[k];
+                    }
+                    
+                    const pValue = 1 - jStat.chisquare.cdf(chi2Stat, 7); // 自由度為 8-1=7
+                    pValues.push(pValue);
+                    windowIndices.push(i + 1);
+                }
+            } else {
+                // --- 微觀檢定邏輯 (Single number) ---
+                const selectedNumber = parseInt(selectedNumberMode, 10);
+                for (let i = 0; i <= globalData.length - windowSize; i++) {
+                    const windowData = globalData.slice(i, i + windowSize);
+                    
+                    const observedSuccess = windowData.filter(row => row[selectedColumn] === selectedNumber).length;
+                    const observedFailure = windowSize - observedSuccess;
+
+                    const expectedSuccess = windowSize / 8;
+                    const expectedFailure = windowSize * (7 / 8);
+
+                    if (expectedSuccess === 0 || expectedFailure === 0) continue;
+
+                    const observed = [observedSuccess, observedFailure];
+                    const expected = [expectedSuccess, expectedFailure];
+                    
+                    const chi2Stat = ((observed[0] - expected[0])**2 / expected[0]) + ((observed[1] - expected[1])**2 / expected[1]);
+                    const pValue = 1 - jStat.chisquare.cdf(chi2Stat, 1); // 自由度為 2-1=1
+                    pValues.push(pValue);
+                    windowIndices.push(i + 1);
+                }
+            }
+            
+            loader.classList.add('hidden');
+            
+            if (pValues.length === 0) {
+                resultSummary.textContent = '沒有足夠的資料來進行分析。';
+                return;
+            }
+
+            const layoutTitle = selectedNumberMode === 'ALL'
+                ? `Overall Distribution P-value Analysis in "${selectedColumn}" (Window=${windowSize})`
+                : `P-value Analysis for Number ${selectedNumberMode} in "${selectedColumn}" (Window=${windowSize})`;
+
+            const trace = {
+                x: windowIndices, y: pValues, mode: 'lines', name: 'P-value',
+                line: { color: 'rgb(55, 128, 191)', width: 2 }
+            };
+
+            const layout = {
+                title: layoutTitle,
+                xaxis: {
+                    title: 'Window Start Index',
+                    rangeslider: { visible: true },
+                    rangeselector: { buttons: [
+                        {count: 1000, label: '1k points', step: 'number', stepmode: 'backward'},
+                        {count: 5000, label: '5k points', step: 'number', stepmode: 'backward'},
+                        {step: 'all', label: 'All'}
+                    ]}
+                },
+                yaxis: { title: 'P-value', range: [0, 1] },
+                shapes: [{
+                    type: 'line', x0: 0, y0: significanceLevel, x1: windowIndices[windowIndices.length - 1], y1: significanceLevel,
+                    line: { color: 'red', width: 2, dash: 'dash' }
+                }],
+                annotations: [{
+                    x: windowIndices[windowIndices.length - 1] * 0.95, y: significanceLevel + 0.02, xref: 'x', yref: 'y',
+                    text: `Significance Level (p=${significanceLevel})`, showarrow: false, font: { color: 'red' }
+                }]
+            };
+
+            Plotly.newPlot('chart', [trace], layout);
+            
+            const significantResults = [];
+            pValues.forEach((pValue, i) => {
+                if (pValue < significanceLevel) {
+                    significantResults.push({ index: windowIndices[i], pValue: pValue });
+                }
+            });
+
+            if (significantResults.length > 0) {
+                significantResults.forEach(result => {
+                    const row = document.createElement('tr');
+                    row.className = 'result-row';
+                    row.onclick = () => zoomToRange(result.index);
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${result.index}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${result.pValue.toFixed(6)}</td>
+                    `;
+                    significantResultsBody.appendChild(row);
+                });
+                significantResultsContainer.classList.remove('hidden');
+            }
+            
+            const significantCount = significantResults.length;
+            const percentage = ((significantCount / pValues.length) * 100).toFixed(2);
+            const summaryText = selectedNumberMode === 'ALL'
+                ? `顯示在這些區間內，號碼的<b>整體分佈</b>有顯著差異。`
+                : `顯示在這些區間內，號碼 <b>${selectedNumberMode}</b> 的出現頻率有顯著差異。`;
+
+            resultSummary.innerHTML = `分析完成！在 ${pValues.length} 個窗口中，共有 <b>${significantCount}</b> 個窗口的 P-value 小於 ${significanceLevel} (佔 <b>${percentage}%</b>)，<br>${summaryText}`;
+        }
+
+        function zoomToRange(index) {
+            const windowSize = parseInt(windowSizeInput.value, 10);
+            const rangeStart = Math.max(1, index - windowSize * 1.5);
+            const rangeEnd = index + windowSize * 1.5;
+            const update = { 'xaxis.range': [rangeStart, rangeEnd] };
+            Plotly.relayout('chart', update);
+            chartDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+    </script>
+</body>
+</html>
