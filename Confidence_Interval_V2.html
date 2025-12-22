@@ -15,6 +15,7 @@
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
         @keyframes fadeIn {
@@ -48,6 +49,12 @@
       }
     }
     </script>
+    
+    <!-- Load Firebase Compat Libraries (More stable for single HTML file usage) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
     <!-- Babel for compiling JSX in browser -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
@@ -62,22 +69,16 @@
           Edit2, Copy, ChevronDown, ChevronUp, Plus, User, LogOut, Save, Menu 
         } from 'lucide-react';
         
-        // Firebase Imports (Direct URL for browser usage)
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { 
-            getAuth, signInAnonymously, signInWithCustomToken, 
-            onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut 
-        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { 
-            getFirestore, collection, addDoc, deleteDoc, doc, 
-            onSnapshot, updateDoc, arrayUnion, arrayRemove, query 
-        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-        // --- Firebase Init ---
+        // --- Firebase Init (Using Compat) ---
         const firebaseConfig = JSON.parse(window.__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        
+        // Initialize Firebase only once
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        
+        const auth = firebase.auth();
+        const db = firebase.firestore();
         const appId = window.__app_id || 'default-app-id';
         const __initial_auth_token = window.__initial_auth_token;
 
@@ -329,7 +330,7 @@
                                 <optgroup key={g.id} label={g.name}>
                                 {g.variants?.map((v, idx) => (
                                     <option key={idx} value={`${g.id}:${idx}`}>{v.name}</option>
-                                ))}
+                                    ))}
                                 </optgroup>
                             ))}
                         </select>
@@ -449,6 +450,16 @@
 
             const toggleGroup = (id) => setExpandedGroups(prev => ({...prev, [id]: !prev[id]}));
 
+            const handleGoogleLogin = async () => {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                try {
+                    await auth.signInWithPopup(provider);
+                } catch (error) {
+                    console.error("Login failed:", error);
+                    alert(`登入失敗: ${error.message}\n如果使用彈出視窗被阻擋，請允許彈出視窗後重試。`);
+                }
+            };
+
             const handleAddGroup = () => {
                 if (newGroupName.trim()) {
                     onAddGroup(newGroupName);
@@ -468,21 +479,20 @@
             return (
                 <div className="bg-white rounded-xl shadow-lg p-6 h-full sticky top-8 flex flex-col max-h-[calc(100vh-4rem)]">
                     <div className="mb-6 flex-shrink-0">
-                        <h3 className="font-bold text-slate-800 border-b pb-2 mb-3 flex items-center gap-2">
-                        <Save size={18} /> 基準 CV 庫
+                        <h3 className="font-bold text-slate-800 border-b pb-2 mb-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2"><Save size={18} /> 基準 CV 庫</div>
+                             {!user ? (
+                                <button onClick={handleGoogleLogin} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">管理登入</button>
+                            ) : (
+                                <button onClick={() => auth.signOut()} className="text-xs text-red-500 hover:underline">登出</button>
+                            )}
                         </h3>
-                        {!user ? (
-                        <div className="text-center py-4 bg-slate-50 rounded-lg">
-                            <p className="text-sm text-slate-500 mb-2">登入以同步基準資料</p>
-                            <button onClick={() => signInWithPopup(auth, new GoogleAuthProvider())} className="text-sm bg-blue-500 text-white px-4 py-1.5 rounded-full hover:bg-blue-600">Google 登入</button>
-                        </div>
-                        ) : (
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-                            <span>{user.email}</span>
-                            <button onClick={() => signOut(auth)} className="text-red-500 hover:underline">登出</button>
-                            </div>
-                            {isAdmin && (
+                        
+                        {user && (
+                             <div className="text-xs text-slate-500 mb-2 text-right">{user.email}</div>
+                        )}
+                        
+                        {isAdmin && (
                             <div className="flex gap-2 mb-2">
                                 <input 
                                 value={newGroupName} 
@@ -492,8 +502,10 @@
                                 />
                                 <button onClick={handleAddGroup} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-700"><Plus size={16}/></button>
                             </div>
-                            )}
-                            <div className="overflow-y-auto max-h-48 pr-1 space-y-2 custom-scrollbar">
+                        )}
+                        
+                        <div className="overflow-y-auto max-h-48 pr-1 space-y-2 custom-scrollbar">
+                                {goldenCvData.length === 0 && <p className="text-center text-xs text-slate-400 py-2">無共享資料...</p>}
                                 {goldenCvData.map(g => (
                                 <div key={g.id} className="border rounded bg-slate-50 text-sm">
                                     <div className="p-2 flex justify-between items-center cursor-pointer hover:bg-slate-100" onClick={() => toggleGroup(g.id)}>
@@ -517,8 +529,6 @@
                                 </div>
                                 ))}
                             </div>
-                        </div>
-                        )}
                     </div>
 
                     <div className="flex-1 flex flex-col min-h-0">
@@ -564,25 +574,24 @@
 
             useEffect(() => {
                 const initAuth = async () => {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } 
-                // 移除自動匿名登入，除非有明確的 Token
+                  if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                      await auth.signInWithCustomToken(__initial_auth_token);
+                  } 
                 };
                 initAuth();
-                const unsubscribe = onAuthStateChanged(auth, setUser);
+                const unsubscribe = auth.onAuthStateChanged(setUser);
                 return () => unsubscribe();
             }, []);
 
             useEffect(() => {
-                // 移除 if (!user) return; 讓未登入者也可以讀取資料
-                const q = query(collection(db, `artifacts/${appId}/public/data/goldenCVGroups`));
-                const unsubscribe = onSnapshot(q, (snapshot) => {
-                    const data = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
-                    setGoldenCvData(data);
-                }, (error) => console.error("Firestore error:", error));
+                // Compat version of Firestore onSnapshot
+                const unsubscribe = db.collection(`artifacts/${appId}/public/data/goldenCVGroups`)
+                  .onSnapshot((snapshot) => {
+                      const data = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
+                      setGoldenCvData(data);
+                  }, (error) => console.error("Firestore error:", error));
                 return () => unsubscribe();
-            }, []); // 移除 user 依賴
+            }, []);
 
             const saveHistory = (type, data) => {
                 if (type === 'rtp') setRtpHistory(prev => [data, ...prev].slice(0, 50));
@@ -598,20 +607,24 @@
 
             const addGroup = async (name) => {
                 if (!user) return;
-                try { await addDoc(collection(db, `artifacts/${appId}/public/data/goldenCVGroups`), { name, variants: [] }); } 
+                try { 
+                    await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).add({ name, variants: [] }); 
+                } 
                 catch(e) { alert("權限不足"); }
             };
 
             const deleteGroup = async (id) => {
                 if (!user || !confirm("確定刪除?")) return;
-                try { await deleteDoc(doc(db, `artifacts/${appId}/public/data/goldenCVGroups`, id)); } 
+                try { 
+                    await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).doc(id).delete(); 
+                } 
                 catch(e) { alert("權限不足"); }
             };
 
             const addVariant = async (groupId, name, rtp, value) => {
                 try {
-                    await updateDoc(doc(db, `artifacts/${appId}/public/data/goldenCVGroups`, groupId), {
-                        variants: arrayUnion({ name, rtp, value })
+                    await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).doc(groupId).update({
+                        variants: firebase.firestore.FieldValue.arrayUnion({ name, rtp, value })
                     });
                 } catch(e) { alert("權限不足"); }
             };
@@ -619,8 +632,8 @@
             const deleteVariant = async (groupId, variant) => {
                 if(!confirm("刪除此玩法?")) return;
                 try {
-                    await updateDoc(doc(db, `artifacts/${appId}/public/data/goldenCVGroups`, groupId), {
-                        variants: arrayRemove(variant)
+                    await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).doc(groupId).update({
+                        variants: firebase.firestore.FieldValue.arrayRemove(variant)
                     });
                 } catch(e) { alert("權限不足"); }
             };
