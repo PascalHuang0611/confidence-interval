@@ -76,7 +76,7 @@
         import { createRoot } from 'react-dom/client';
         import { 
           Calculator, Target, LineChart, History, Bookmark, Trash2, 
-          Edit2, Copy, ChevronDown, ChevronUp, Plus, User, LogOut, Save, Menu, AlertCircle, FileJson, Clipboard, Upload, Activity, FolderOpen
+          Edit2, Copy, ChevronDown, ChevronUp, Plus, User, LogOut, Save, Menu, AlertCircle, FileJson, Clipboard, Upload, Activity, FolderOpen, Search, X, Settings
         } from 'lucide-react';
         
         // --- Firebase Init ---
@@ -178,7 +178,6 @@
 
             if (range === 0) return <p className="text-center text-sm text-slate-500 mt-4">區間寬度為零，無法繪圖</p>;
 
-            // Normalize actual value (input is %, intervals are ratios)
             const normalizedActual = colorClass === 'sky' ? parseFloat(actualVal) / 100 : parseFloat(actualVal) / 100;
             
             const scaleMin = ci997.lower - range * 0.2;
@@ -248,6 +247,193 @@
                         <span className="font-mono text-lg text-slate-800 font-medium">{(lower * 100).toFixed(4)}%</span>
                         <span className="mx-2 text-slate-400">~</span>
                         <span className="font-mono text-lg text-slate-800 font-medium">{(upper * 100).toFixed(4)}%</span>
+                    </div>
+                </div>
+            );
+        };
+
+        const ModalSelector = ({ goldenCvData, onSelect, placeholder = "選擇基準..." }) => {
+            const [isOpen, setIsOpen] = useState(false);
+            const [selectedGroup, setSelectedGroup] = useState(null);
+            const [searchTerm, setSearchTerm] = useState("");
+            const [selectedLabel, setSelectedLabel] = useState(placeholder);
+
+            const filteredGroups = useMemo(() => {
+                if (!searchTerm) return goldenCvData;
+                const lowerTerm = searchTerm.toLowerCase();
+                return goldenCvData.map(group => {
+                    const groupMatch = group.name.toLowerCase().includes(lowerTerm);
+                    const filteredVariants = group.variants.filter(v => v.name.toLowerCase().includes(lowerTerm));
+                    if (groupMatch || filteredVariants.length > 0) {
+                        return { ...group, variants: groupMatch ? group.variants : filteredVariants };
+                    }
+                    return null;
+                }).filter(Boolean);
+            }, [goldenCvData, searchTerm]);
+
+            const handleSelect = (groupId, variantIndex, variantName) => {
+                onSelect(groupId, variantIndex);
+                setSelectedLabel(variantName);
+                setIsOpen(false);
+                setSearchTerm("");
+                setSelectedGroup(null);
+            };
+
+            return (
+                <>
+                    <button 
+                        onClick={() => setIsOpen(true)} 
+                        className="w-full bg-slate-100 border border-slate-200 rounded-lg text-sm px-3 py-2 text-left text-slate-600 hover:bg-slate-200 transition-colors truncate"
+                    >
+                        {selectedLabel}
+                    </button>
+
+                    {isOpen && (
+                        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
+                            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col overflow-hidden">
+                                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                    <h3 className="font-bold text-slate-700">選擇基準遊戲</h3>
+                                    <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-red-500 transition-colors">
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                                <div className="p-4 border-b border-slate-100">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                                        <input 
+                                            type="text" 
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            placeholder="搜尋遊戲名稱..."
+                                            className="w-full pl-9 pr-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex-1 flex overflow-hidden">
+                                    <div className="w-1/3 border-r border-slate-100 overflow-y-auto bg-slate-50 custom-scrollbar">
+                                        {filteredGroups.map(group => (
+                                            <div 
+                                                key={group.id} 
+                                                onClick={() => setSelectedGroup(group)}
+                                                className={`p-3 cursor-pointer text-sm font-medium transition-colors ${selectedGroup?.id === group.id ? 'bg-white text-indigo-600 border-l-4 border-indigo-600 shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}
+                                            >
+                                                {group.name}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="w-2/3 overflow-y-auto custom-scrollbar p-2">
+                                        {selectedGroup ? (
+                                            <div className="space-y-1">
+                                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2 mt-2">{selectedGroup.name} 玩法</h4>
+                                                {selectedGroup.variants.map((v, idx) => (
+                                                    <button 
+                                                        key={idx}
+                                                        onClick={() => handleSelect(selectedGroup.id, idx, `${selectedGroup.name} - ${v.name}`)}
+                                                        className="w-full text-left p-3 rounded-lg hover:bg-indigo-50 text-sm text-slate-700 flex justify-between items-center group transition-colors"
+                                                    >
+                                                        <span>{v.name}</span>
+                                                        <span className="text-xs text-slate-400 group-hover:text-indigo-500">
+                                                            RTP: {v.rtp}% / CV: {v.value}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="h-full flex items-center justify-center text-slate-400 text-sm flex-col">
+                                                <FolderOpen size={32} className="mb-2 opacity-50" />
+                                                請先選擇左側遊戲群組
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        };
+
+        // --- NEW: Admin Modal Component ---
+        const AdminModal = ({ isOpen, onClose, goldenCvData, onAddGroup, onDeleteGroup, onAddVariant, onDeleteVariant }) => {
+            const [newGroupName, setNewGroupName] = useState("");
+            
+            if (!isOpen) return null;
+
+            const handleAddGroupSubmit = () => {
+                if(newGroupName.trim()) {
+                    onAddGroup(newGroupName);
+                    setNewGroupName("");
+                }
+            };
+
+            const handleAddVariantSubmit = (groupId) => {
+                const name = prompt("玩法名稱:");
+                if (!name) return;
+                const rtp = prompt("RTP (%):");
+                if (!rtp) return;
+                const cv = prompt("CV 值:");
+                if (name && rtp && cv) {
+                    onAddVariant(groupId, name, parseFloat(rtp), parseFloat(cv));
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden">
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="font-bold text-slate-700 flex items-center gap-2"><Settings size={20}/> 基準資料管理</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-red-500 transition-colors">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        
+                        <div className="p-4 border-b border-slate-100 bg-slate-50">
+                            <div className="flex gap-2">
+                                <input 
+                                    value={newGroupName} 
+                                    onChange={(e) => setNewGroupName(e.target.value)} 
+                                    placeholder="新增遊戲群組名稱..." 
+                                    className="flex-1 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                                <button onClick={handleAddGroupSubmit} className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium flex items-center gap-1">
+                                    <Plus size={18} /> 新增群組
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50 custom-scrollbar">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {goldenCvData.map(group => (
+                                    <div key={group.id} className="bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col h-full">
+                                        <div className="p-3 border-b border-slate-100 bg-slate-100/50 flex justify-between items-center">
+                                            <h4 className="font-bold text-slate-700">{group.name}</h4>
+                                            <button onClick={() => onDeleteGroup(group.id)} className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors" title="刪除群組">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                        <div className="p-3 flex-1 space-y-2">
+                                            {group.variants?.length === 0 && <p className="text-xs text-slate-400 italic text-center py-2">尚無玩法資料</p>}
+                                            {group.variants?.map((v, idx) => (
+                                                <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded hover:bg-slate-100 group">
+                                                    <div>
+                                                        <div className="font-medium text-slate-700">{v.name}</div>
+                                                        <div className="text-xs text-slate-500">RTP: {v.rtp}% | CV: {v.value}</div>
+                                                    </div>
+                                                    <button onClick={() => onDeleteVariant(group.id, v)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="p-3 border-t border-slate-100 mt-auto">
+                                            <button onClick={() => handleAddVariantSubmit(group.id)} className="w-full text-xs text-center text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-2 rounded font-medium border border-indigo-200 border-dashed transition-colors">
+                                                + 新增玩法變體
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
@@ -329,16 +515,9 @@
                             <label className="block text-sm font-medium text-slate-600 mb-1">CV / 基準套用</label>
                             <div className="flex gap-2">
                                 <input type="number" value={cv} onChange={(e) => setCv(Number(e.target.value))} className="flex-1 px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none min-w-0" placeholder="CV" />
-                                <select onChange={(e) => handlePresetChange(e.target.value.split(':')[0], e.target.value.split(':')[1])} className="w-48 bg-slate-100 border border-slate-200 rounded-lg text-sm px-2 outline-none">
-                                    <option value="">選擇基準...</option>
-                                    {goldenCvData.map(g => (
-                                    <optgroup key={g.id} label={g.name}>
-                                        {g.variants?.map((v, idx) => (
-                                        <option key={idx} value={`${g.id}:${idx}`}>{v.name}</option>
-                                        ))}
-                                    </optgroup>
-                                    ))}
-                                </select>
+                                <div className="w-48">
+                                    <ModalSelector goldenCvData={goldenCvData} onSelect={handlePresetChange} />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -414,16 +593,7 @@
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1">快速套用基準</label>
-                            <select onChange={(e) => handlePresetChange(e.target.value.split(':')[0], e.target.value.split(':')[1])} className="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 outline-none">
-                                <option value="">選擇...</option>
-                                {goldenCvData.map(g => (
-                                    <optgroup key={g.id} label={g.name}>
-                                    {g.variants?.map((v, idx) => (
-                                        <option key={idx} value={`${g.id}:${idx}`}>{v.name}</option>
-                                    ))}
-                                    </optgroup>
-                                ))}
-                            </select>
+                            <ModalSelector goldenCvData={goldenCvData} onSelect={handlePresetChange} />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1">信賴水準</label>
@@ -683,16 +853,9 @@
                                         onChange={(e) => setTargetRtp(e.target.value)} 
                                         className="w-32 px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                                     />
-                                    <select onChange={(e) => handlePresetChange(e.target.value.split(':')[0], e.target.value.split(':')[1])} className="flex-1 bg-slate-100 border border-slate-200 rounded-lg text-sm px-2 outline-none">
-                                        <option value="">快速套用基準...</option>
-                                        {goldenCvData.map(g => (
-                                            <optgroup key={g.id} label={g.name}>
-                                                {g.variants?.map((v, idx) => (
-                                                    <option key={idx} value={`${g.id}:${idx}`}>{v.name}</option>
-                                                ))}
-                                            </optgroup>
-                                        ))}
-                                    </select>
+                                    <div className="flex-1">
+                                        <ModalSelector goldenCvData={goldenCvData} onSelect={handlePresetChange} placeholder="快速套用基準..." />
+                                    </div>
                                 </div>
                             </div>
 
@@ -950,6 +1113,7 @@
             const isAdmin = user && ADMIN_EMAILS.includes(user.email);
             const [expandedGroups, setExpandedGroups] = useState({});
             const isGuest = !user || user.isAnonymous;
+            const [showAdminModal, setShowAdminModal] = useState(false);
 
             const toggleGroup = (id) => setExpandedGroups(prev => ({...prev, [id]: !prev[id]}));
 
@@ -963,102 +1127,97 @@
                 }
             };
 
-            const handleAddGroup = () => {
-                if (newGroupName.trim()) {
-                    onAddGroup(newGroupName);
-                    setNewGroupName("");
-                }
-            };
-
-            const handleAddVariant = (groupId) => {
-                const name = prompt("玩法名稱:");
-                const rtp = prompt("RTP (%):");
-                const cv = prompt("CV 值:");
-                if (name && rtp && cv) {
-                    onAddVariant(groupId, name, parseFloat(rtp), parseFloat(cv));
-                }
-            };
-
             return (
-                <div className="bg-white rounded-xl shadow-lg p-6 h-full sticky top-8 flex flex-col max-h-[calc(100vh-4rem)]">
-                    <div className="mb-6 flex-shrink-0">
-                        <h3 className="font-bold text-slate-800 border-b pb-2 mb-3 flex items-center justify-between">
-                            <div className="flex items-center gap-2"><Save size={18} /> 基準 CV 庫</div>
-                             {isGuest ? (
-                                <button onClick={handleGoogleLogin} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">管理員登入</button>
-                            ) : (
-                                <button onClick={() => auth.signOut()} className="text-xs text-red-500 hover:underline">登出</button>
-                            )}
-                        </h3>
-                        {!isGuest && <div className="text-xs text-slate-500 mb-2 text-right">{user.email}</div>}
-                        {isAdmin && (
-                            <div className="flex gap-2 mb-2">
-                                <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="新群組名稱" className="flex-1 px-2 py-1 bg-slate-100 border rounded text-sm" />
-                                <button onClick={handleAddGroup} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-700"><Plus size={16}/></button>
-                            </div>
-                        )}
-                        <div className="overflow-y-auto max-h-48 pr-1 space-y-2 custom-scrollbar">
-                                {dataError && (
-                                    <div className="text-center p-2 bg-red-50 rounded-lg border border-red-100 mb-2">
-                                        <div className="flex justify-center mb-1 text-red-500"><AlertCircle size={16} /></div>
-                                        <p className="text-xs text-red-600 font-bold mb-1">讀取失敗：權限不足</p>
-                                        <p className="text-[10px] text-red-400">請確認資料庫已開放讀取權限<br/>(allow read: if true)</p>
-                                    </div>
+                <>
+                    <div className="bg-white rounded-xl shadow-lg p-6 h-full sticky top-8 flex flex-col max-h-[calc(100vh-4rem)]">
+                        <div className="mb-6 flex-shrink-0">
+                            <h3 className="font-bold text-slate-800 border-b pb-2 mb-3 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Save size={18} /> 基準 CV 庫
+                                    {isAdmin && (
+                                        <button onClick={() => setShowAdminModal(true)} className="text-slate-400 hover:text-indigo-600 transition-colors p-1" title="管理基準資料">
+                                            <Settings size={16} />
+                                        </button>
+                                    )}
+                                </div>
+                                {isGuest ? (
+                                    <button onClick={handleGoogleLogin} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">管理員登入</button>
+                                ) : (
+                                    <button onClick={() => auth.signOut()} className="text-xs text-red-500 hover:underline">登出</button>
                                 )}
-                                {!dataError && goldenCvData.length === 0 && <p className="text-center text-xs text-slate-400 py-2">無共享資料...</p>}
-                                {goldenCvData.map(g => (
-                                <div key={g.id} className="border rounded bg-slate-50 text-sm">
-                                    <div className="p-2 flex justify-between items-center cursor-pointer hover:bg-slate-100" onClick={() => toggleGroup(g.id)}>
-                                    <span className="font-medium text-slate-700">{g.name}</span>
-                                    <div className="flex items-center gap-1">
-                                        {isAdmin && <button onClick={(e) => {e.stopPropagation(); onDeleteGroup(g.id);}} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>}
-                                        {expandedGroups[g.id] ? <ChevronUp size={14} className="text-slate-400"/> : <ChevronDown size={14} className="text-slate-400"/>}
-                                    </div>
-                                    </div>
-                                    {expandedGroups[g.id] && (
-                                    <div className="px-2 pb-2 border-t pt-2 space-y-1">
-                                        {g.variants?.map((v, idx) => (
-                                        <div key={idx} className="flex justify-between items-center text-xs text-slate-600 pl-2">
-                                            <span>{v.name} (RTP {v.rtp}, CV {v.value})</span>
-                                            {isAdmin && <button onClick={() => onDeleteVariant(g.id, v)} className="text-slate-300 hover:text-red-500"><Trash2 size={12}/></button>}
+                            </h3>
+                            {!isGuest && <div className="text-xs text-slate-500 mb-2 text-right">{user.email}</div>}
+                            
+                            <div className="overflow-y-auto max-h-48 pr-1 space-y-2 custom-scrollbar">
+                                    {dataError && (
+                                        <div className="text-center p-2 bg-red-50 rounded-lg border border-red-100 mb-2">
+                                            <div className="flex justify-center mb-1 text-red-500"><AlertCircle size={16} /></div>
+                                            <p className="text-xs text-red-600 font-bold mb-1">讀取失敗：權限不足</p>
+                                            <p className="text-[10px] text-red-400">請確認資料庫已開放讀取權限<br/>(allow read: if true)</p>
                                         </div>
-                                        ))}
-                                        {isAdmin && <button onClick={() => handleAddVariant(g.id)} className="w-full text-xs text-center text-indigo-500 hover:bg-indigo-50 py-1 mt-1 rounded border border-dashed border-indigo-200">+ 新增玩法</button>}
+                                    )}
+                                    {!dataError && goldenCvData.length === 0 && <p className="text-center text-xs text-slate-400 py-2">無共享資料...</p>}
+                                    {goldenCvData.map(g => (
+                                    <div key={g.id} className="border rounded bg-slate-50 text-sm">
+                                        <div className="p-2 flex justify-between items-center cursor-pointer hover:bg-slate-100" onClick={() => toggleGroup(g.id)}>
+                                        <span className="font-medium text-slate-700">{g.name}</span>
+                                        <div className="flex items-center gap-1">
+                                            {expandedGroups[g.id] ? <ChevronUp size={14} className="text-slate-400"/> : <ChevronDown size={14} className="text-slate-400"/>}
+                                        </div>
+                                        </div>
+                                        {expandedGroups[g.id] && (
+                                        <div className="px-2 pb-2 border-t pt-2 space-y-1">
+                                            {g.variants?.map((v, idx) => (
+                                            <div key={idx} className="flex justify-between items-center text-xs text-slate-600 pl-2">
+                                                <span>{v.name} (RTP {v.rtp}, CV {v.value})</span>
+                                            </div>
+                                            ))}
+                                        </div>
+                                        )}
+                                    </div>
+                                    ))}
+                                </div>
+                        </div>
+                        <div className="flex-1 flex flex-col min-h-0">
+                            <div className="flex justify-between items-center border-b pb-2 mb-3">
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><History size={18}/> 歷史紀錄</h3>
+                                <button onClick={() => onClearHistory(activeHistoryTab)} className="text-slate-400 hover:text-red-500" title="清除"><Trash2 size={16}/></button>
+                            </div>
+                            <div className="flex gap-2 mb-3">
+                                <button onClick={() => setActiveHistoryTab('rtp')} className={`flex-1 py-1 text-xs font-medium rounded ${activeHistoryTab === 'rtp' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'}`}>RTP</button>
+                                <button onClick={() => setActiveHistoryTab('hitRate')} className={`flex-1 py-1 text-xs font-medium rounded ${activeHistoryTab === 'hitRate' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>命中率</button>
+                            </div>
+                            <div className="overflow-y-auto flex-1 custom-scrollbar space-y-2 pr-1">
+                                {history[activeHistoryTab]?.map((item, idx) => (
+                                <div key={idx} onClick={() => onLoadHistory(activeHistoryTab, item)} className="p-2 border rounded text-sm hover:bg-indigo-50 cursor-pointer transition-colors">
+                                    {activeHistoryTab === 'rtp' ? (
+                                    <div>
+                                        <span className="font-semibold text-sky-700">RTP {item.rtp}%</span>
+                                        <div className="text-xs text-slate-500">CV: {item.cv}, N: {formatNumber(item.n)}</div>
+                                    </div>
+                                    ) : (
+                                    <div>
+                                        <span className="font-semibold text-emerald-700">Hit: {formatNumber(item.k)}</span>
+                                        <div className="text-xs text-slate-500">Total: {formatNumber(item.n)}</div>
                                     </div>
                                     )}
                                 </div>
                                 ))}
+                                {(!history[activeHistoryTab] || history[activeHistoryTab].length === 0) && <p className="text-center text-xs text-slate-400 mt-4">暫無紀錄</p>}
                             </div>
-                    </div>
-                    <div className="flex-1 flex flex-col min-h-0">
-                        <div className="flex justify-between items-center border-b pb-2 mb-3">
-                            <h3 className="font-bold text-slate-800 flex items-center gap-2"><History size={18}/> 歷史紀錄</h3>
-                            <button onClick={() => onClearHistory(activeHistoryTab)} className="text-slate-400 hover:text-red-500" title="清除"><Trash2 size={16}/></button>
-                        </div>
-                        <div className="flex gap-2 mb-3">
-                            <button onClick={() => setActiveHistoryTab('rtp')} className={`flex-1 py-1 text-xs font-medium rounded ${activeHistoryTab === 'rtp' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'}`}>RTP</button>
-                            <button onClick={() => setActiveHistoryTab('hitRate')} className={`flex-1 py-1 text-xs font-medium rounded ${activeHistoryTab === 'hitRate' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>命中率</button>
-                        </div>
-                        <div className="overflow-y-auto flex-1 custom-scrollbar space-y-2 pr-1">
-                            {history[activeHistoryTab]?.map((item, idx) => (
-                            <div key={idx} onClick={() => onLoadHistory(activeHistoryTab, item)} className="p-2 border rounded text-sm hover:bg-indigo-50 cursor-pointer transition-colors">
-                                {activeHistoryTab === 'rtp' ? (
-                                <div>
-                                    <span className="font-semibold text-sky-700">RTP {item.rtp}%</span>
-                                    <div className="text-xs text-slate-500">CV: {item.cv}, N: {formatNumber(item.n)}</div>
-                                </div>
-                                ) : (
-                                <div>
-                                    <span className="font-semibold text-emerald-700">Hit: {formatNumber(item.k)}</span>
-                                    <div className="text-xs text-slate-500">Total: {formatNumber(item.n)}</div>
-                                </div>
-                                )}
-                            </div>
-                            ))}
-                            {(!history[activeHistoryTab] || history[activeHistoryTab].length === 0) && <p className="text-center text-xs text-slate-400 mt-4">暫無紀錄</p>}
                         </div>
                     </div>
-                </div>
+                    
+                    <AdminModal 
+                        isOpen={showAdminModal} 
+                        onClose={() => setShowAdminModal(false)}
+                        goldenCvData={goldenCvData}
+                        onAddGroup={onAddGroup}
+                        onDeleteGroup={onDeleteGroup}
+                        onAddVariant={onAddVariant}
+                        onDeleteVariant={onDeleteVariant}
+                    />
+                </>
             );
         };
 
