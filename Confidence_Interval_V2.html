@@ -76,7 +76,7 @@
         import { createRoot } from 'react-dom/client';
         import { 
           Calculator, Target, LineChart, History, Bookmark, Trash2, 
-          Edit2, Copy, ChevronDown, ChevronUp, Plus, User, LogOut, Save, Menu, AlertCircle, FileJson, Clipboard, Upload, Activity, FolderOpen, Search, X, Settings
+          Edit2, Copy, ChevronDown, ChevronUp, Plus, User, LogOut, Save, Menu, AlertCircle, FileJson, Clipboard, Upload, Activity, FolderOpen, Search, X, Settings, Check
         } from 'lucide-react';
         
         // --- Firebase Init ---
@@ -356,6 +356,8 @@
         // --- NEW: Admin Modal Component ---
         const AdminModal = ({ isOpen, onClose, goldenCvData, onAddGroup, onDeleteGroup, onAddVariant, onDeleteVariant }) => {
             const [newGroupName, setNewGroupName] = useState("");
+            const [addingVariantGroupId, setAddingVariantGroupId] = useState(null);
+            const [newVariantForm, setNewVariantForm] = useState({ name: "", rtp: "", cv: "" });
             
             if (!isOpen) return null;
 
@@ -366,14 +368,22 @@
                 }
             };
 
-            const handleAddVariantSubmit = (groupId) => {
-                const name = prompt("玩法名稱:");
-                if (!name) return;
-                const rtp = prompt("RTP (%):");
-                if (!rtp) return;
-                const cv = prompt("CV 值:");
+            const startAddingVariant = (groupId) => {
+                setAddingVariantGroupId(groupId);
+                setNewVariantForm({ name: "", rtp: "", cv: "" });
+            };
+
+            const cancelAddingVariant = () => {
+                setAddingVariantGroupId(null);
+            };
+
+            const submitNewVariant = (groupId) => {
+                const { name, rtp, cv } = newVariantForm;
                 if (name && rtp && cv) {
                     onAddVariant(groupId, name, parseFloat(rtp), parseFloat(cv));
+                    setAddingVariantGroupId(null);
+                } else {
+                    alert("請填寫完整資訊");
                 }
             };
 
@@ -424,12 +434,46 @@
                                                     </button>
                                                 </div>
                                             ))}
+                                            
+                                            {/* Add Variant Form */}
+                                            {addingVariantGroupId === group.id && (
+                                                <div className="p-2 bg-indigo-50/50 border border-indigo-100 rounded animate-fadeIn">
+                                                    <input 
+                                                        placeholder="名稱" 
+                                                        className="w-full text-xs p-1 mb-1 border rounded"
+                                                        value={newVariantForm.name}
+                                                        onChange={(e) => setNewVariantForm({...newVariantForm, name: e.target.value})}
+                                                    />
+                                                    <div className="flex gap-1 mb-2">
+                                                        <input 
+                                                            placeholder="RTP%" 
+                                                            type="number"
+                                                            className="w-1/2 text-xs p-1 border rounded"
+                                                            value={newVariantForm.rtp}
+                                                            onChange={(e) => setNewVariantForm({...newVariantForm, rtp: e.target.value})}
+                                                        />
+                                                        <input 
+                                                            placeholder="CV" 
+                                                            type="number"
+                                                            className="w-1/2 text-xs p-1 border rounded"
+                                                            value={newVariantForm.cv}
+                                                            onChange={(e) => setNewVariantForm({...newVariantForm, cv: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div className="flex gap-1">
+                                                        <button onClick={() => submitNewVariant(group.id)} className="flex-1 bg-indigo-500 text-white text-xs py-1 rounded hover:bg-indigo-600">確認</button>
+                                                        <button onClick={cancelAddingVariant} className="flex-1 bg-slate-300 text-slate-600 text-xs py-1 rounded hover:bg-slate-400">取消</button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="p-3 border-t border-slate-100 mt-auto">
-                                            <button onClick={() => handleAddVariantSubmit(group.id)} className="w-full text-xs text-center text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-2 rounded font-medium border border-indigo-200 border-dashed transition-colors">
-                                                + 新增玩法變體
-                                            </button>
-                                        </div>
+                                        {addingVariantGroupId !== group.id && (
+                                            <div className="p-3 border-t border-slate-100 mt-auto">
+                                                <button onClick={() => startAddingVariant(group.id)} className="w-full text-xs text-center text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-2 rounded font-medium border border-indigo-200 border-dashed transition-colors">
+                                                    + 新增玩法變體
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -1127,84 +1171,99 @@
                 }
             };
 
+            const handleAddGroup = () => {
+                if (newGroupName.trim()) {
+                    onAddGroup(newGroupName);
+                    setNewGroupName("");
+                }
+            };
+
+            const handleAddVariant = (groupId) => {
+                const name = prompt("玩法名稱:");
+                const rtp = prompt("RTP (%):");
+                const cv = prompt("CV 值:");
+                if (name && rtp && cv) {
+                    onAddVariant(groupId, name, parseFloat(rtp), parseFloat(cv));
+                }
+            };
+
             return (
-                <>
-                    <div className="bg-white rounded-xl shadow-lg p-6 h-full sticky top-8 flex flex-col max-h-[calc(100vh-4rem)]">
-                        <div className="mb-6 flex-shrink-0">
-                            <h3 className="font-bold text-slate-800 border-b pb-2 mb-3 flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Save size={18} /> 基準 CV 庫
-                                    {isAdmin && (
-                                        <button onClick={() => setShowAdminModal(true)} className="text-slate-400 hover:text-indigo-600 transition-colors p-1" title="管理基準資料">
-                                            <Settings size={16} />
-                                        </button>
-                                    )}
-                                </div>
-                                {isGuest ? (
-                                    <button onClick={handleGoogleLogin} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">管理員登入</button>
-                                ) : (
-                                    <button onClick={() => auth.signOut()} className="text-xs text-red-500 hover:underline">登出</button>
+                <div className="bg-white rounded-xl shadow-lg p-6 h-full sticky top-8 flex flex-col max-h-[calc(100vh-4rem)]">
+                    <div className="mb-6 flex-shrink-0">
+                        <h3 className="font-bold text-slate-800 border-b pb-2 mb-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2"><Save size={18} /> 基準 CV 庫</div>
+                             {isGuest ? (
+                                <button onClick={handleGoogleLogin} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">管理員登入</button>
+                            ) : (
+                                <button onClick={() => auth.signOut()} className="text-xs text-red-500 hover:underline">登出</button>
+                            )}
+                        </h3>
+                        {!isGuest && <div className="text-xs text-slate-500 mb-2 text-right">{user.email}</div>}
+                        {isAdmin && (
+                            <div className="flex gap-2 mb-2">
+                                <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="新群組名稱" className="flex-1 px-2 py-1 bg-slate-100 border rounded text-sm" />
+                                <button onClick={handleAddGroup} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-700"><Plus size={16}/></button>
+                            </div>
+                        )}
+                        <div className="overflow-y-auto max-h-48 pr-1 space-y-2 custom-scrollbar">
+                                {dataError && (
+                                    <div className="text-center p-2 bg-red-50 rounded-lg border border-red-100 mb-2">
+                                        <div className="flex justify-center mb-1 text-red-500"><AlertCircle size={16} /></div>
+                                        <p className="text-xs text-red-600 font-bold mb-1">讀取失敗：權限不足</p>
+                                        <p className="text-[10px] text-red-400">請確認資料庫已開放讀取權限<br/>(allow read: if true)</p>
+                                    </div>
                                 )}
-                            </h3>
-                            {!isGuest && <div className="text-xs text-slate-500 mb-2 text-right">{user.email}</div>}
-                            
-                            <div className="overflow-y-auto max-h-48 pr-1 space-y-2 custom-scrollbar">
-                                    {dataError && (
-                                        <div className="text-center p-2 bg-red-50 rounded-lg border border-red-100 mb-2">
-                                            <div className="flex justify-center mb-1 text-red-500"><AlertCircle size={16} /></div>
-                                            <p className="text-xs text-red-600 font-bold mb-1">讀取失敗：權限不足</p>
-                                            <p className="text-[10px] text-red-400">請確認資料庫已開放讀取權限<br/>(allow read: if true)</p>
-                                        </div>
-                                    )}
-                                    {!dataError && goldenCvData.length === 0 && <p className="text-center text-xs text-slate-400 py-2">無共享資料...</p>}
-                                    {goldenCvData.map(g => (
-                                    <div key={g.id} className="border rounded bg-slate-50 text-sm">
-                                        <div className="p-2 flex justify-between items-center cursor-pointer hover:bg-slate-100" onClick={() => toggleGroup(g.id)}>
-                                        <span className="font-medium text-slate-700">{g.name}</span>
-                                        <div className="flex items-center gap-1">
-                                            {expandedGroups[g.id] ? <ChevronUp size={14} className="text-slate-400"/> : <ChevronDown size={14} className="text-slate-400"/>}
-                                        </div>
-                                        </div>
-                                        {expandedGroups[g.id] && (
-                                        <div className="px-2 pb-2 border-t pt-2 space-y-1">
-                                            {g.variants?.map((v, idx) => (
-                                            <div key={idx} className="flex justify-between items-center text-xs text-slate-600 pl-2">
-                                                <span>{v.name} (RTP {v.rtp}, CV {v.value})</span>
-                                            </div>
-                                            ))}
-                                        </div>
-                                        )}
+                                {!dataError && goldenCvData.length === 0 && <p className="text-center text-xs text-slate-400 py-2">無共享資料...</p>}
+                                {goldenCvData.map(g => (
+                                <div key={g.id} className="border rounded bg-slate-50 text-sm">
+                                    <div className="p-2 flex justify-between items-center cursor-pointer hover:bg-slate-100" onClick={() => toggleGroup(g.id)}>
+                                    <span className="font-medium text-slate-700">{g.name}</span>
+                                    <div className="flex items-center gap-1">
+                                        {isAdmin && <button onClick={(e) => {e.stopPropagation(); onDeleteGroup(g.id);}} className="text-slate-400 hover:text-red-500"><Trash2 size={14}/></button>}
+                                        {expandedGroups[g.id] ? <ChevronUp size={14} className="text-slate-400"/> : <ChevronDown size={14} className="text-slate-400"/>}
                                     </div>
-                                    ))}
-                                </div>
-                        </div>
-                        <div className="flex-1 flex flex-col min-h-0">
-                            <div className="flex justify-between items-center border-b pb-2 mb-3">
-                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><History size={18}/> 歷史紀錄</h3>
-                                <button onClick={() => onClearHistory(activeHistoryTab)} className="text-slate-400 hover:text-red-500" title="清除"><Trash2 size={16}/></button>
-                            </div>
-                            <div className="flex gap-2 mb-3">
-                                <button onClick={() => setActiveHistoryTab('rtp')} className={`flex-1 py-1 text-xs font-medium rounded ${activeHistoryTab === 'rtp' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'}`}>RTP</button>
-                                <button onClick={() => setActiveHistoryTab('hitRate')} className={`flex-1 py-1 text-xs font-medium rounded ${activeHistoryTab === 'hitRate' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>命中率</button>
-                            </div>
-                            <div className="overflow-y-auto flex-1 custom-scrollbar space-y-2 pr-1">
-                                {history[activeHistoryTab]?.map((item, idx) => (
-                                <div key={idx} onClick={() => onLoadHistory(activeHistoryTab, item)} className="p-2 border rounded text-sm hover:bg-indigo-50 cursor-pointer transition-colors">
-                                    {activeHistoryTab === 'rtp' ? (
-                                    <div>
-                                        <span className="font-semibold text-sky-700">RTP {item.rtp}%</span>
-                                        <div className="text-xs text-slate-500">CV: {item.cv}, N: {formatNumber(item.n)}</div>
                                     </div>
-                                    ) : (
-                                    <div>
-                                        <span className="font-semibold text-emerald-700">Hit: {formatNumber(item.k)}</span>
-                                        <div className="text-xs text-slate-500">Total: {formatNumber(item.n)}</div>
+                                    {expandedGroups[g.id] && (
+                                    <div className="px-2 pb-2 border-t pt-2 space-y-1">
+                                        {g.variants?.map((v, idx) => (
+                                        <div key={idx} className="flex justify-between items-center text-xs text-slate-600 pl-2">
+                                            <span>{v.name} (RTP {v.rtp}, CV {v.value})</span>
+                                            {isAdmin && <button onClick={() => onDeleteVariant(g.id, v)} className="text-slate-300 hover:text-red-500"><Trash2 size={12}/></button>}
+                                        </div>
+                                        ))}
+                                        {isAdmin && <button onClick={() => handleAddVariant(g.id)} className="w-full text-xs text-center text-indigo-500 hover:bg-indigo-50 py-1 mt-1 rounded border border-dashed border-indigo-200">+ 新增玩法</button>}
                                     </div>
                                     )}
                                 </div>
                                 ))}
-                                {(!history[activeHistoryTab] || history[activeHistoryTab].length === 0) && <p className="text-center text-xs text-slate-400 mt-4">暫無紀錄</p>}
                             </div>
+                    </div>
+                    <div className="flex-1 flex flex-col min-h-0">
+                        <div className="flex justify-between items-center border-b pb-2 mb-3">
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2"><History size={18}/> 歷史紀錄</h3>
+                            <button onClick={() => onClearHistory(activeHistoryTab)} className="text-slate-400 hover:text-red-500" title="清除"><Trash2 size={16}/></button>
+                        </div>
+                        <div className="flex gap-2 mb-3">
+                            <button onClick={() => setActiveHistoryTab('rtp')} className={`flex-1 py-1 text-xs font-medium rounded ${activeHistoryTab === 'rtp' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'}`}>RTP</button>
+                            <button onClick={() => setActiveHistoryTab('hitRate')} className={`flex-1 py-1 text-xs font-medium rounded ${activeHistoryTab === 'hitRate' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>命中率</button>
+                        </div>
+                        <div className="overflow-y-auto flex-1 custom-scrollbar space-y-2 pr-1">
+                            {history[activeHistoryTab]?.map((item, idx) => (
+                            <div key={idx} onClick={() => onLoadHistory(activeHistoryTab, item)} className="p-2 border rounded text-sm hover:bg-indigo-50 cursor-pointer transition-colors">
+                                {activeHistoryTab === 'rtp' ? (
+                                <div>
+                                    <span className="font-semibold text-sky-700">RTP {item.rtp}%</span>
+                                    <div className="text-xs text-slate-500">CV: {item.cv}, N: {formatNumber(item.n)}</div>
+                                </div>
+                                ) : (
+                                <div>
+                                    <span className="font-semibold text-emerald-700">Hit: {formatNumber(item.k)}</span>
+                                    <div className="text-xs text-slate-500">Total: {formatNumber(item.n)}</div>
+                                </div>
+                                )}
+                            </div>
+                            ))}
+                            {(!history[activeHistoryTab] || history[activeHistoryTab].length === 0) && <p className="text-center text-xs text-slate-400 mt-4">暫無紀錄</p>}
                         </div>
                     </div>
                     
@@ -1217,7 +1276,7 @@
                         onAddVariant={onAddVariant}
                         onDeleteVariant={onDeleteVariant}
                     />
-                </>
+                </div>
             );
         };
 
