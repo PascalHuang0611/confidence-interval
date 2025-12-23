@@ -6,15 +6,15 @@
     <title>遊戲數據信賴區間計算機 (React版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- 引入 CryptoJS 用於 MD5 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    
     <style>
         body { font-family: 'Inter', 'Noto Sans TC', sans-serif; }
-        /* 隱藏捲軸但保留功能 */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        /* 自定義捲軸 */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
@@ -23,6 +23,16 @@
             to { opacity: 1; transform: translateY(0); }
         }
         .animate-fadeIn { animation: fadeIn 0.5s ease-out forwards; }
+        
+        @keyframes toastFade {
+            0% { opacity: 0; transform: translate(-50%, -20px); }
+            10% { opacity: 1; transform: translate(-50%, 0); }
+            90% { opacity: 1; transform: translate(-50%, 0); }
+            100% { opacity: 0; transform: translate(-50%, -20px); }
+        }
+        .toast-animate {
+            animation: toastFade 2s ease-in-out forwards;
+        }
     </style>
     
     <!-- Firebase Config Setup -->
@@ -39,7 +49,7 @@
       window.__app_id = 'game-ci-tool-v1'; 
     </script>
 
-    <!-- Import Map to handle bare module imports in browser -->
+    <!-- Import Map -->
     <script type="importmap">
     {
       "imports": {
@@ -50,43 +60,39 @@
     }
     </script>
     
-    <!-- Load Firebase Compat Libraries (More stable for single HTML file usage) -->
+    <!-- Firebase Compat Libraries -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-    <!-- Babel for compiling JSX in browser -->
+    <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800">
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useMemo } from 'react';
+        import React, { useState, useEffect, useMemo, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
         import { 
           Calculator, Target, LineChart, History, Bookmark, Trash2, 
-          Edit2, Copy, ChevronDown, ChevronUp, Plus, User, LogOut, Save, Menu 
+          Edit2, Copy, ChevronDown, ChevronUp, Plus, User, LogOut, Save, Menu, AlertCircle, FileJson, Clipboard, Upload, Activity, FolderOpen
         } from 'lucide-react';
         
-        // --- Firebase Init (Using Compat) ---
+        // --- Firebase Init ---
         const firebaseConfig = JSON.parse(window.__firebase_config);
-        
-        // Initialize Firebase only once
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
         }
-        
         const auth = firebase.auth();
         const db = firebase.firestore();
         const appId = window.__app_id || 'default-app-id';
         const __initial_auth_token = window.__initial_auth_token;
 
-        // Constants
         const ADMIN_EMAILS = ['a4568245682@gmail.com'];
         const Z_SCORES = { '95%': 1.96, '99%': 2.576, '99.7%': 3.0 };
 
-        // --- Utility Functions ---
+        // --- Utils ---
         const formatNumber = (num) => {
             if (num >= 1e9) return `${(num / 1e9).toFixed(1)}B`;
             if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
@@ -106,7 +112,27 @@
             return { lower: Math.max(0, lower), upper: Math.min(1, upper) };
         };
 
-        // --- Custom Hooks ---
+        // Statistics Utils for Z-Test
+        const getMean = (data) => data.reduce((a, b) => a + b, 0) / data.length;
+        const getStdDev = (data, mean) => {
+            if (data.length <= 1) return 0;
+            const squareDiffs = data.map(value => Math.pow(value - mean, 2));
+            const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / (data.length - 1);
+            return Math.sqrt(avgSquareDiff);
+        };
+        const erf = (x) => {
+            const a1 =  0.254829592, a2 = -0.284496736, a3 =  1.421413741;
+            const a4 = -1.453152027, a5 =  1.061405429, p  =  0.3275911;
+            const sign = (x < 0) ? -1 : 1;
+            x = Math.abs(x);
+            const t = 1.0 / (1.0 + p * x);
+            const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+            return sign * y;
+        };
+        const getPValue = (z) => {
+            return 2 * (1 - 0.5 * (1 + erf(Math.abs(z) / Math.sqrt(2))));
+        };
+
         const useLocalStorage = (key, initialValue) => {
             const [storedValue, setStoredValue] = useState(() => {
                 try {
@@ -116,7 +142,6 @@
                     return initialValue;
                 }
             });
-
             const setValue = (value) => {
                 try {
                     const valueToStore = value instanceof Function ? value(storedValue) : value;
@@ -126,33 +151,90 @@
                     console.error(error);
                 }
             };
-
             return [storedValue, setValue];
         };
 
-        // --- Sub-Components ---
+        // --- Components ---
+        
+        const Toast = ({ message, onClose }) => {
+            useEffect(() => {
+                const timer = setTimeout(onClose, 2000);
+                return () => clearTimeout(timer);
+            }, [onClose]);
+            if (!message) return null;
+            return (
+                <div className="fixed top-5 left-1/2 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-lg z-50 toast-animate">
+                    {message}
+                </div>
+            );
+        };
 
-        // 1. Result Card
+        const VisualChart = ({ intervals, centerVal, actualVal, colorClass = 'sky' }) => {
+            if (!intervals || !intervals['99.7%'] || actualVal === null || isNaN(actualVal) || actualVal === "") return null;
+
+            const ci997 = intervals['99.7%'];
+            const ci95 = intervals['95%'];
+            const range = ci997.upper - ci997.lower;
+
+            if (range === 0) return <p className="text-center text-sm text-slate-500 mt-4">區間寬度為零，無法繪圖</p>;
+
+            // Normalize actual value (input is %, intervals are ratios)
+            const normalizedActual = colorClass === 'sky' ? parseFloat(actualVal) / 100 : parseFloat(actualVal) / 100;
+            
+            const scaleMin = ci997.lower - range * 0.2;
+            const scaleMax = ci997.upper + range * 0.2;
+            const scaleRange = scaleMax - scaleMin;
+
+            const toPercent = (val) => Math.max(0, Math.min(100, ((val - scaleMin) / scaleRange) * 100));
+
+            const pLower997 = toPercent(ci997.lower);
+            const pUpper997 = toPercent(ci997.upper);
+            const pLower95 = toPercent(ci95.lower);
+            const pUpper95 = toPercent(ci95.upper);
+            const pCenter = toPercent(centerVal); 
+            const pActual = toPercent(normalizedActual);
+
+            const markerOverlap = Math.abs(pActual - pCenter) < 6;
+            
+            const bgLight = colorClass === 'sky' ? 'bg-sky-100' : 'bg-emerald-100';
+            const bgDark = colorClass === 'sky' ? 'bg-sky-300' : 'bg-emerald-300';
+
+            return (
+                <div className="relative w-full h-24 mt-8 select-none border-t pt-6">
+                    <div className="absolute top-1/2 w-full h-0.5 bg-slate-200"></div>
+                    <div className={`absolute top-1/2 -translate-y-1/2 h-3 ${bgLight} rounded-full opacity-80`} style={{ left: `${pLower997}%`, width: `${pUpper997 - pLower997}%` }}></div>
+                    <div className={`absolute top-1/2 -translate-y-1/2 h-3 ${bgDark} rounded-full opacity-90`} style={{ left: `${pLower95}%`, width: `${pUpper95 - pLower95}%` }}></div>
+                    <div className="absolute top-1/2 -translate-x-1/2" style={{ left: `${pCenter}%` }}>
+                        <div className="w-2 h-2 bg-slate-600 rounded-full -mt-1"></div>
+                        <span className="absolute left-1/2 -translate-x-1/2 -mt-6 text-[10px] text-slate-500 font-mono">{(centerVal * 100).toFixed(2)}%</span>
+                    </div>
+                    <div className="absolute top-1/2 -translate-x-1/2 transition-all duration-500 z-10" style={{ left: `${pActual}%`, top: markerOverlap ? '80%' : '50%' }}>
+                        <div className={`w-0.5 h-5 ${markerOverlap ? 'mt-0' : '-mt-2.5'} bg-red-500 mx-auto`}></div>
+                        <span className={`absolute left-1/2 -translate-x-1/2 ${markerOverlap ? 'mt-1' : '-mt-7'} text-xs text-red-600 font-bold font-mono bg-white/80 px-1 rounded shadow-sm`}>{(normalizedActual * 100).toFixed(2)}%</span>
+                    </div>
+                    <div className="absolute top-full mt-1 text-[10px] text-slate-400 -translate-x-1/2 font-mono" style={{ left: `${pLower95}%` }}>{(ci95.lower * 100).toFixed(2)}%</div>
+                    <div className="absolute top-full mt-1 text-[10px] text-slate-400 -translate-x-1/2 font-mono" style={{ left: `${pUpper95}%` }}>{(ci95.upper * 100).toFixed(2)}%</div>
+                </div>
+            );
+        };
+
         const ResultCard = ({ level, zScore, lower, upper, actualVal, isRtp }) => {
             const [show, setShow] = useState(false);
             useEffect(() => setShow(true), []);
 
             let status = null;
             let statusColor = "";
-            
             if (actualVal !== null && !isNaN(actualVal) && actualVal !== "") {
-                const val = isRtp ? parseFloat(actualVal) / 100 : parseFloat(actualVal);
+                const val = isRtp ? parseFloat(actualVal) / 100 : parseFloat(actualVal) / 100;
                 const isPass = val >= lower && val <= upper;
                 status = isPass ? "PASS" : "FAIL";
                 statusColor = isPass ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
             }
-
             const borderColors = {
                 '95%': isRtp ? 'border-sky-500' : 'border-emerald-500',
                 '99%': isRtp ? 'border-indigo-500' : 'border-teal-500',
                 '99.7%': isRtp ? 'border-violet-500' : 'border-cyan-500',
             };
-
             return (
                 <div className={`transform transition-all duration-500 ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} bg-white p-4 rounded-lg border-l-4 ${borderColors[level]} shadow-sm mb-3`}>
                     <div className="flex justify-between items-center mb-1">
@@ -171,28 +253,34 @@
             );
         };
 
-        // 2. RTP Calculator
-        const RTPCalculator = ({ goldenCvData, onSaveHistory }) => {
-            const [n, setN] = useState(10000000);
-            const [rtp, setRtp] = useState(96.5);
-            const [cv, setCv] = useState(5.5);
-            const [actualRtp, setActualRtp] = useState("");
+        const RTPCalculator = ({ goldenCvData, onSaveHistory, showToast, importedData }) => {
+            const [n, setN] = useLocalStorage('ciCalc_rtp_n', 10000000);
+            const [rtp, setRtp] = useLocalStorage('ciCalc_rtp_val', 96.5);
+            const [cv, setCv] = useLocalStorage('ciCalc_rtp_cv', 5.5);
+            const [actualRtp, setActualRtp] = useLocalStorage('ciCalc_rtp_actual', "");
             const [results, setResults] = useState(null);
             const [autoCalc, setAutoCalc] = useLocalStorage('ciCalc_autoCalcRtp', false);
+
+            useEffect(() => {
+                if (importedData && importedData.type === 'rtp') {
+                    setN(importedData.n);
+                    setRtp(importedData.rtp);
+                    setCv(importedData.cv);
+                    if (autoCalc) setTimeout(() => calculate(), 0);
+                }
+            }, [importedData]);
 
             const calculate = () => {
                 if (n <= 0 || cv < 0) return;
                 const rtpVal = rtp / 100;
                 const stdDev = rtpVal * cv;
                 const stdError = stdDev / Math.sqrt(n);
-                
                 const newResults = {};
                 Object.entries(Z_SCORES).forEach(([level, z]) => {
                     const margin = z * stdError;
                     newResults[level] = { lower: rtpVal - margin, upper: rtpVal + margin, z };
                 });
                 setResults(newResults);
-                
                 onSaveHistory('rtp', { n, rtp, cv });
             };
 
@@ -209,6 +297,18 @@
                     setCv(variant.value);
                 }
             };
+            
+            const handleCopyReport = () => {
+                if (!results) return;
+                const resultText = ['95%', '99%', '99.7%'].map(level => {
+                    const interval = results[level];
+                    const value = parseFloat(actualRtp) / 100;
+                    const status = !isNaN(value) ? ((value >= interval.lower && value <= interval.upper) ? 'PASS' : 'FAIL') : 'N/A';
+                    return `- ${level}: ${status}`;
+                }).join('\n');
+                const report = `RTP 驗證報告\n--------------------\n[輸入參數]\n- 總模擬次數 (n): ${n.toLocaleString()}\n- 理論 RTP (%): ${rtp}\n- 理論/基準 CV: ${cv}\n- 實際模擬 RTP (%): ${actualRtp || '未輸入'}\n--------------------\n[信賴區間]\n- 95%: ${(results['95%'].lower * 100).toFixed(4)}% ~ ${(results['95%'].upper * 100).toFixed(4)}%\n- 99%: ${(results['99%'].lower * 100).toFixed(4)}% ~ ${(results['99%'].upper * 100).toFixed(4)}%\n- 99.7%: ${(results['99.7%'].lower * 100).toFixed(4)}% ~ ${(results['99.7%'].upper * 100).toFixed(4)}%\n--------------------\n[驗證結果]\n${resultText}`;
+                navigator.clipboard.writeText(report).then(() => showToast('已複製報告 ✅'));
+            };
 
             return (
                 <div className="space-y-6 animate-fadeIn">
@@ -216,71 +316,62 @@
                         <h2 className="text-2xl font-bold text-slate-800 mb-2">RTP 信賴區間</h2>
                         <p className="text-slate-500 text-sm">輸入理論參數，驗證模擬結果的波動是否合理。</p>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">總模擬次數 (n)</label>
-                        <input type="number" value={n} onChange={(e) => setN(Number(e.target.value))} className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none" />
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="md:col-span-1">
+                            <label className="block text-sm font-medium text-slate-600 mb-1">總模擬次數 (n)</label>
+                            <input type="number" value={n} onChange={(e) => setN(Number(e.target.value))} className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none" />
                         </div>
-                        <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">理論 RTP (%)</label>
-                        <input type="number" value={rtp} onChange={(e) => setRtp(Number(e.target.value))} className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none" />
+                        <div className="md:col-span-1">
+                            <label className="block text-sm font-medium text-slate-600 mb-1">理論 RTP (%)</label>
+                            <input type="number" value={rtp} onChange={(e) => setRtp(Number(e.target.value))} className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none" />
                         </div>
-                        <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">CV / 基準套用</label>
-                        <div className="flex gap-2">
-                            <input type="number" value={cv} onChange={(e) => setCv(Number(e.target.value))} className="w-20 px-2 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none" />
-                            <select onChange={(e) => handlePresetChange(e.target.value.split(':')[0], e.target.value.split(':')[1])} className="flex-1 bg-slate-100 border border-slate-200 rounded-lg text-sm px-2 outline-none">
-                                <option value="">選擇基準...</option>
-                                {goldenCvData.map(g => (
-                                <optgroup key={g.id} label={g.name}>
-                                    {g.variants?.map((v, idx) => (
-                                    <option key={idx} value={`${g.id}:${idx}`}>{v.name}</option>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-slate-600 mb-1">CV / 基準套用</label>
+                            <div className="flex gap-2">
+                                <input type="number" value={cv} onChange={(e) => setCv(Number(e.target.value))} className="flex-1 px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none min-w-0" placeholder="CV" />
+                                <select onChange={(e) => handlePresetChange(e.target.value.split(':')[0], e.target.value.split(':')[1])} className="w-48 bg-slate-100 border border-slate-200 rounded-lg text-sm px-2 outline-none">
+                                    <option value="">選擇基準...</option>
+                                    {goldenCvData.map(g => (
+                                    <optgroup key={g.id} label={g.name}>
+                                        {g.variants?.map((v, idx) => (
+                                        <option key={idx} value={`${g.id}:${idx}`}>{v.name}</option>
+                                        ))}
+                                    </optgroup>
                                     ))}
-                                </optgroup>
-                                ))}
-                            </select>
-                        </div>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <button onClick={calculate} className="bg-sky-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-sky-700 shadow-md active:scale-95 transition-all">
-                        計算區間
-                        </button>
-                        <label className="flex items-center text-sm text-slate-600 cursor-pointer select-none">
-                        <input type="checkbox" checked={autoCalc} onChange={(e) => setAutoCalc(e.target.checked)} className="mr-2 h-4 w-4 text-sky-600 rounded" />
-                        自動計算
-                        </label>
-                    </div>
-
-                    {results && (
-                        <div className="mt-8 border-t pt-6">
-                        <div className="flex flex-col md:flex-row justify-between items-end mb-4 gap-4">
-                            <div className="w-full md:w-auto">
-                                <label className="block text-sm font-medium text-slate-600 mb-1">實際模擬 RTP (%) - 用於比對</label>
-                                <input 
-                                type="number" 
-                                value={actualRtp} 
-                                onChange={(e) => setActualRtp(e.target.value)} 
-                                placeholder="例如: 96.48"
-                                className="w-full md:w-64 px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none"
-                                />
+                                </select>
                             </div>
                         </div>
-                        
-                        <div className="grid gap-3">
-                            {Object.entries(results).map(([level, data], idx) => (
-                                <ResultCard key={level} level={level} zScore={data.z} lower={data.lower} upper={data.upper} actualVal={actualRtp} isRtp={true} />
-                            ))}
-                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button onClick={calculate} className="bg-sky-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-sky-700 shadow-md active:scale-95 transition-all">計算區間</button>
+                        <label className="flex items-center text-sm text-slate-600 cursor-pointer select-none">
+                            <input type="checkbox" checked={autoCalc} onChange={(e) => setAutoCalc(e.target.checked)} className="mr-2 h-4 w-4 text-sky-600 rounded" />
+                            自動計算
+                        </label>
+                    </div>
+                    {results && (
+                        <div className="mt-8 border-t pt-6">
+                            <div className="flex flex-col md:flex-row justify-between items-end mb-4 gap-4">
+                                <div className="w-full md:w-auto">
+                                    <label className="block text-sm font-medium text-slate-600 mb-1">實際模擬 RTP (%) - 用於比對</label>
+                                    <div className="flex gap-2">
+                                        <input type="number" value={actualRtp} onChange={(e) => setActualRtp(e.target.value)} placeholder="例如: 96.48" className="w-full md:w-64 px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 outline-none" />
+                                        <button onClick={handleCopyReport} className="bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg hover:bg-slate-300 active:scale-95 transition-all whitespace-nowrap flex items-center gap-1"><Copy size={16}/> 複製報告</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="grid gap-3">
+                                {Object.entries(results).map(([level, data]) => (
+                                    <ResultCard key={level} level={level} zScore={data.z} lower={data.lower} upper={data.upper} actualVal={actualRtp} isRtp={true} />
+                                ))}
+                            </div>
+                            <VisualChart intervals={results} centerVal={rtp / 100} actualVal={actualRtp} colorClass="sky" />
                         </div>
                     )}
                 </div>
             );
         };
 
-        // 3. Estimator Module
         const SimulationEstimator = ({ goldenCvData }) => {
             const [rtp, setRtp] = useLocalStorage('ciCalc_est_rtp', 96.5);
             const [cv, setCv] = useLocalStorage('ciCalc_est_cv', 5.5);
@@ -313,70 +404,69 @@
                         <h2 className="text-2xl font-bold text-slate-800 mb-2">模擬次數估算器</h2>
                         <p className="text-slate-500 text-sm">想達到特定的精準度？這裡告訴你需要跑幾轉。</p>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">理論 RTP (%) & CV</label>
-                        <div className="flex gap-2">
-                            <input type="number" value={rtp} onChange={(e) => setRtp(Number(e.target.value))} className="w-1/2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg" placeholder="RTP" />
-                            <input type="number" value={cv} onChange={(e) => setCv(Number(e.target.value))} className="w-1/2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg" placeholder="CV" />
-                        </div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">理論 RTP (%) & CV</label>
+                            <div className="flex gap-2">
+                                <input type="number" value={rtp} onChange={(e) => setRtp(Number(e.target.value))} className="w-1/2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg" placeholder="RTP" />
+                                <input type="number" value={cv} onChange={(e) => setCv(Number(e.target.value))} className="w-1/2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg" placeholder="CV" />
+                            </div>
                         </div>
                         <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">快速套用基準</label>
-                        <select onChange={(e) => handlePresetChange(e.target.value.split(':')[0], e.target.value.split(':')[1])} className="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 outline-none">
-                            <option value="">選擇...</option>
-                            {goldenCvData.map(g => (
-                                <optgroup key={g.id} label={g.name}>
-                                {g.variants?.map((v, idx) => (
-                                    <option key={idx} value={`${g.id}:${idx}`}>{v.name}</option>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">快速套用基準</label>
+                            <select onChange={(e) => handlePresetChange(e.target.value.split(':')[0], e.target.value.split(':')[1])} className="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 outline-none">
+                                <option value="">選擇...</option>
+                                {goldenCvData.map(g => (
+                                    <optgroup key={g.id} label={g.name}>
+                                    {g.variants?.map((v, idx) => (
+                                        <option key={idx} value={`${g.id}:${idx}`}>{v.name}</option>
                                     ))}
-                                </optgroup>
-                            ))}
-                        </select>
+                                    </optgroup>
+                                ))}
+                            </select>
                         </div>
                         <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">信賴水準</label>
-                        <select value={confidence} onChange={(e) => setConfidence(Number(e.target.value))} className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg">
-                            <option value="1.96">95% (標準)</option>
-                            <option value="2.576">99% (嚴格)</option>
-                            <option value="3.0">99.7% (極嚴格)</option>
-                        </select>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">信賴水準</label>
+                            <select value={confidence} onChange={(e) => setConfidence(Number(e.target.value))} className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg">
+                                <option value="1.96">95% (標準)</option>
+                                <option value="2.576">99% (嚴格)</option>
+                                <option value="3.0">99.7% (極嚴格)</option>
+                            </select>
                         </div>
                         <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">容許誤差 (±%)</label>
-                        <input type="number" value={error} onChange={(e) => setError(Number(e.target.value))} className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg" />
+                            <label className="block text-sm font-medium text-slate-600 mb-1">容許誤差 (±%)</label>
+                            <input type="number" value={error} onChange={(e) => setError(Number(e.target.value))} className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg" />
                         </div>
                     </div>
-
-                    <button onClick={calculate} className="bg-purple-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-purple-700 active:scale-95 transition-transform w-full md:w-auto">
-                        估算所需次數
-                    </button>
-
+                    <button onClick={calculate} className="bg-purple-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-purple-700 active:scale-95 transition-transform w-full md:w-auto">估算所需次數</button>
                     {result && (
                         <div className="mt-6 p-6 bg-purple-50 rounded-xl border border-purple-100 text-center">
-                        <p className="text-purple-800 mb-2">建議最少模擬次數</p>
-                        <div className="text-3xl md:text-4xl font-bold text-purple-700 font-mono tracking-tight">
-                            {result.toLocaleString()} <span className="text-lg text-purple-500 font-normal">Spins</span>
-                        </div>
-                        <p className="text-xs text-purple-400 mt-2">基於常態分佈反推</p>
+                            <p className="text-purple-800 mb-2">建議最少模擬次數</p>
+                            <div className="text-3xl md:text-4xl font-bold text-purple-700 font-mono tracking-tight">{result.toLocaleString()} <span className="text-lg text-purple-500 font-normal">Spins</span></div>
+                            <p className="text-xs text-purple-400 mt-2">基於常態分佈反推</p>
                         </div>
                     )}
                 </div>
             );
         };
 
-        // 4. Hit Rate Module
-        const HitRateCalculator = ({ onSaveHistory }) => {
-            const [k, setK] = useState(200000);
-            const [n, setN] = useState(1000000);
+        const HitRateCalculator = ({ onSaveHistory, showToast, importedData }) => {
+            const [k, setK] = useLocalStorage('ciCalc_hit_k', 200000);
+            const [n, setN] = useLocalStorage('ciCalc_hit_n', 1000000);
             const [results, setResults] = useState(null);
-            const [targetRate, setTargetRate] = useState("");
+            const [targetRate, setTargetRate] = useLocalStorage('ciCalc_hit_target', "");
             const [autoCalc, setAutoCalc] = useLocalStorage('ciCalc_autoCalcHit', false);
+
+            useEffect(() => {
+                if (importedData && importedData.type === 'hitRate') {
+                    setK(importedData.k);
+                    setN(importedData.n);
+                    if (autoCalc) setTimeout(() => calculate(), 0);
+                }
+            }, [importedData]);
 
             const calculate = () => {
                 if (n <= 0 || k < 0 || k > n) return;
-                
                 const newResults = {};
                 Object.entries(Z_SCORES).forEach(([level, z]) => {
                     newResults[level] = { ...calculateWilsonScore(k, n, z), z };
@@ -389,64 +479,477 @@
                 if (autoCalc) calculate();
             }, [k, n, autoCalc]);
 
+            const handleCopyReport = () => {
+                if (!results) return;
+                const resultText = ['95%', '99%', '99.7%'].map(level => {
+                    const interval = results[level];
+                    const value = parseFloat(targetRate) / 100;
+                    const status = !isNaN(value) ? ((value >= interval.lower && value <= interval.upper) ? 'PASS' : 'FAIL') : 'N/A';
+                    return `- ${level}: ${status}`;
+                }).join('\n');
+                const report = `命中率 驗證報告\n--------------------\n[輸入參數]\n- 模擬命中次數 (k): ${k.toLocaleString()}\n- 模擬總次數 (n): ${n.toLocaleString()}\n- 理論命中率 (%): ${targetRate || '未輸入'}\n--------------------\n[信賴區間]\n- 95%: ${(results['95%'].lower * 100).toFixed(4)}% ~ ${(results['95%'].upper * 100).toFixed(4)}%\n- 99%: ${(results['99%'].lower * 100).toFixed(4)}% ~ ${(results['99%'].upper * 100).toFixed(4)}%\n- 99.7%: ${(results['99.7%'].lower * 100).toFixed(4)}% ~ ${(results['99.7%'].upper * 100).toFixed(4)}%\n--------------------\n[驗證結果]\n${resultText}`;
+                navigator.clipboard.writeText(report).then(() => showToast('已複製報告 ✅'));
+            };
+
             return (
                 <div className="space-y-6 animate-fadeIn">
                     <div>
                         <h2 className="text-2xl font-bold text-slate-800 mb-2">命中率信賴區間</h2>
                         <p className="text-slate-500 text-sm">Free Game 或 Bonus 很難開？檢查一下命中率是否正常。</p>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">命中次數 (k)</label>
-                        <input type="number" value={k} onChange={(e) => setK(Number(e.target.value))} className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+                            <label className="block text-sm font-medium text-slate-600 mb-1">命中次數 (k)</label>
+                            <input type="number" value={k} onChange={(e) => setK(Number(e.target.value))} className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
                         </div>
                         <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1">總次數 (n)</label>
-                        <input type="number" value={n} onChange={(e) => setN(Number(e.target.value))} className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+                            <label className="block text-sm font-medium text-slate-600 mb-1">總次數 (n)</label>
+                            <input type="number" value={n} onChange={(e) => setN(Number(e.target.value))} className="w-full px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
                         </div>
                     </div>
-
                     <div className="flex items-center gap-4">
-                        <button onClick={calculate} className="bg-emerald-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-emerald-700 shadow-md active:scale-95 transition-all">
-                        計算區間
-                        </button>
+                        <button onClick={calculate} className="bg-emerald-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-emerald-700 shadow-md active:scale-95 transition-all">計算區間</button>
                         <label className="flex items-center text-sm text-slate-600 cursor-pointer select-none">
-                        <input type="checkbox" checked={autoCalc} onChange={(e) => setAutoCalc(e.target.checked)} className="mr-2 h-4 w-4 text-emerald-600 rounded" />
-                        自動計算
+                            <input type="checkbox" checked={autoCalc} onChange={(e) => setAutoCalc(e.target.checked)} className="mr-2 h-4 w-4 text-emerald-600 rounded" />
+                            自動計算
                         </label>
                     </div>
-
                     {results && (
                         <div className="mt-8 border-t pt-6">
-                        <div className="w-full md:w-auto mb-4">
-                            <label className="block text-sm font-medium text-slate-600 mb-1">理論命中率 (%) - 用於比對</label>
-                            <input 
-                                type="number" 
-                                value={targetRate} 
-                                onChange={(e) => setTargetRate(e.target.value)} 
-                                placeholder="例如: 1.5"
-                                className="w-full md:w-64 px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                            />
-                        </div>
-                        
-                        <div className="grid gap-3">
-                            {Object.entries(results).map(([level, data], idx) => (
-                                <ResultCard key={level} level={level} zScore={data.z} lower={data.lower} upper={data.upper} actualVal={targetRate} isRtp={false} />
-                            ))}
-                        </div>
+                            <div className="w-full md:w-auto mb-4">
+                                <label className="block text-sm font-medium text-slate-600 mb-1">理論命中率 (%) - 用於比對</label>
+                                <div className="flex gap-2">
+                                    <input type="number" value={targetRate} onChange={(e) => setTargetRate(e.target.value)} placeholder="例如: 1.5" className="w-full md:w-64 px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+                                    <button onClick={handleCopyReport} className="bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg hover:bg-slate-300 active:scale-95 transition-all whitespace-nowrap flex items-center gap-1"><Copy size={16}/> 複製報告</button>
+                                </div>
+                            </div>
+                            <div className="grid gap-3">
+                                {Object.entries(results).map(([level, data]) => (
+                                    <ResultCard key={level} level={level} zScore={data.z} lower={data.lower} upper={data.upper} actualVal={targetRate} isRtp={false} />
+                                ))}
+                            </div>
+                            <VisualChart intervals={results} centerVal={k / n} actualVal={targetRate} colorClass="emerald" />
                         </div>
                     )}
                 </div>
             );
         };
 
-        // 5. Sidebar
-        const Sidebar = ({ user, goldenCvData, history, onClearHistory, onAddGroup, onDeleteGroup, onAddVariant, onDeleteVariant }) => {
+        const ZTestCalculator = ({ goldenCvData, showToast }) => {
+            const [rtpData, setRtpData] = useLocalStorage('ciCalc_ztest_data', '');
+            const [targetRtp, setTargetRtp] = useLocalStorage('ciCalc_ztest_target', 96.5);
+            const [targetName, setTargetName] = useState("");
+            const [savedData, setSavedData] = useLocalStorage('ciCalc_ztest_saved', {});
+            const [result, setResult] = useState(null);
+            const [selectedSavedKey, setSelectedSavedKey] = useState("");
+
+            const handleCalculate = () => {
+                if (!rtpData || !targetRtp) return;
+
+                const lines = rtpData.split('\n');
+                const values = lines
+                    .map(line => parseFloat(line.replace(/%/g, '').trim()))
+                    .filter(v => !isNaN(v));
+
+                if (values.length < 2) {
+                    showToast('請至少輸入兩筆有效的 RTP 數據');
+                    return;
+                }
+
+                const n = values.length;
+                const mean = getMean(values);
+                const stdDev = getStdDev(values, mean);
+                const target = parseFloat(targetRtp);
+                const stdError = stdDev / Math.sqrt(n);
+                const zScore = (mean - target) / stdError;
+                const pValue = getPValue(zScore);
+                
+                const marginError = 1.96 * stdError;
+                const ciLower = mean - marginError;
+                const ciUpper = mean + marginError;
+
+                const passed = pValue > 0.05; 
+
+                setResult({
+                    n,
+                    mean,
+                    stdDev,
+                    zScore,
+                    pValue,
+                    ciLower,
+                    ciUpper,
+                    passed
+                });
+            };
+
+            const handlePresetChange = (groupId, variantIndex) => {
+                if (!groupId || variantIndex === "") {
+                    setTargetName("");
+                    return;
+                }
+                const group = goldenCvData.find(g => g.id === groupId);
+                const variant = group?.variants[variantIndex];
+                if (variant) {
+                    setTargetRtp(variant.rtp);
+                    setTargetName(`${group.name} - ${variant.name}`);
+                }
+            };
+
+            const handleSaveData = () => {
+                const name = targetName || `Target RTP: ${targetRtp}%`;
+                const timestamp = new Date().toLocaleString();
+                const key = `${name} (${timestamp})`;
+                
+                setSavedData(prev => ({
+                    ...prev,
+                    [key]: rtpData
+                }));
+                showToast(`已儲存數據: ${key}`);
+            };
+
+            const handleLoadData = (e) => {
+                const key = e.target.value;
+                setSelectedSavedKey(key);
+                if (key && savedData[key]) {
+                    setRtpData(savedData[key]);
+                }
+            };
+
+            const handleDeleteData = () => {
+                if (!selectedSavedKey) return;
+                if (confirm(`確定要刪除 "${selectedSavedKey}" 嗎？`)) {
+                    const newSavedData = { ...savedData };
+                    delete newSavedData[selectedSavedKey];
+                    setSavedData(newSavedData);
+                    setSelectedSavedKey("");
+                    showToast("數據已刪除");
+                }
+            };
+
+            const handleCopyReport = () => {
+                if (!result) return;
+                const report = `Z 檢定報告 (同賽果/多局)\n--------------------\n[輸入參數]\n- 樣本數 (N): ${result.n}\n- 目標 RTP: ${targetRtp}%\n- 數據來源: ${targetName || '自定義'}\n--------------------\n[統計結果]\n- 樣本平均值: ${result.mean.toFixed(4)}%\n- 樣本標準差 (SD): ${result.stdDev.toFixed(4)}\n- Z-Score: ${result.zScore.toFixed(4)}\n- P-Value: ${result.pValue.toFixed(4)}\n- 95% CI: ${result.ciLower.toFixed(4)}% ~ ${result.ciUpper.toFixed(4)}%\n--------------------\n[檢定結論]\n- 結果: ${result.passed ? 'PASS (無顯著差異)' : 'FAIL (顯著差異)'}\n- 說明: ${result.passed ? '樣本平均值落在目標值的合理誤差範圍內。' : '樣本平均值顯著偏離目標值，請檢查機率模型。'}\n--------------------\n[原始數據]\n${rtpData}`;
+                navigator.clipboard.writeText(report).then(() => showToast('已複製報告 (含原始數據) ✅'));
+            };
+
+            return (
+                <div className="space-y-6 animate-fadeIn">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800 mb-2">Z 檢定 (同賽果/多局分析)</h2>
+                        <p className="text-slate-500 text-sm">輸入多局 RTP 結果，檢定實際平均值是否顯著偏離目標值。</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Input Area */}
+                        <div className="flex flex-col h-full">
+                            <label className="block text-sm font-medium text-slate-600 mb-2">RTP 數據列表 (每行一筆，支援 %)</label>
+                            <textarea 
+                                value={rtpData}
+                                onChange={(e) => setRtpData(e.target.value)}
+                                className="w-full flex-1 p-4 bg-slate-50 border border-slate-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none min-h-[300px]"
+                                placeholder={`49%\n98%\n50%\n96%...`}
+                            ></textarea>
+                            <div className="flex justify-between items-center mt-1 mb-2">
+                                 <p className="text-xs text-slate-400">已輸入 {rtpData.split('\n').filter(l => l.trim()).length} 筆數據</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={handleSaveData} className="px-3 py-1 bg-slate-200 text-slate-700 text-xs rounded hover:bg-slate-300 flex items-center gap-1">
+                                    <Save size={12} /> 儲存
+                                </button>
+                                <div className="flex-1 flex gap-1">
+                                    <select value={selectedSavedKey} onChange={handleLoadData} className="flex-1 bg-slate-50 border border-slate-200 rounded text-xs px-2 outline-none">
+                                        <option value="">載入暫存數據...</option>
+                                        {Object.keys(savedData).map(key => (
+                                            <option key={key} value={key}>{key}</option>
+                                        ))}
+                                    </select>
+                                    {selectedSavedKey && (
+                                        <button onClick={handleDeleteData} className="px-2 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200" title="刪除選取數據">
+                                            <Trash2 size={12} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Controls & Results */}
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">目標 RTP (%)</label>
+                                <div className="flex gap-2">
+                                    <input 
+                                        type="number" 
+                                        value={targetRtp} 
+                                        onChange={(e) => setTargetRtp(e.target.value)} 
+                                        className="w-32 px-4 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                    />
+                                    <select onChange={(e) => handlePresetChange(e.target.value.split(':')[0], e.target.value.split(':')[1])} className="flex-1 bg-slate-100 border border-slate-200 rounded-lg text-sm px-2 outline-none">
+                                        <option value="">快速套用基準...</option>
+                                        {goldenCvData.map(g => (
+                                            <optgroup key={g.id} label={g.name}>
+                                                {g.variants?.map((v, idx) => (
+                                                    <option key={idx} value={`${g.id}:${idx}`}>{v.name}</option>
+                                                ))}
+                                            </optgroup>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button onClick={handleCalculate} className="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 shadow-md active:scale-95 transition-all">
+                                開始檢定
+                            </button>
+
+                            {result && (
+                                <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-sm animate-fadeIn">
+                                    <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                        <h3 className="font-bold text-slate-700">檢定結果 (95% 水準)</h3>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${result.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                            {result.passed ? 'PASS (無顯著差異)' : 'FAIL (顯著差異)'}
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+                                        <div className="text-slate-500">樣本數 (N):</div>
+                                        <div className="text-right font-mono font-medium">{result.n}</div>
+                                        
+                                        <div className="text-slate-500">樣本平均值:</div>
+                                        <div className="text-right font-mono font-medium">{result.mean.toFixed(4)}%</div>
+                                        
+                                        <div className="text-slate-500">樣本標準差 (SD):</div>
+                                        <div className="text-right font-mono font-medium">{result.stdDev.toFixed(4)}</div>
+                                        
+                                        <div className="text-slate-500">Z-Score:</div>
+                                        <div className="text-right font-mono font-medium">{result.zScore.toFixed(4)}</div>
+                                        
+                                        <div className="text-slate-500">P-Value:</div>
+                                        <div className="text-right font-mono font-medium">{result.pValue.toFixed(4)}</div>
+                                    </div>
+
+                                    <div className="mt-4 pt-3 border-t text-xs text-slate-400">
+                                        <p>95% 信賴區間: {result.ciLower.toFixed(4)}% ~ {result.ciUpper.toFixed(4)}%</p>
+                                        <p className="mt-1">{result.passed ? '樣本平均值落在目標值的合理誤差範圍內。' : '樣本平均值顯著偏離目標值，請檢查機率模型。'}</p>
+                                    </div>
+
+                                    <button onClick={handleCopyReport} className="w-full mt-4 bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg hover:bg-slate-300 active:scale-95 transition-all whitespace-nowrap flex items-center justify-center gap-2">
+                                        <Copy size={16}/> 複製詳細報告
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Md5Validator = () => {
+            const [mode, setMode] = useState('text');
+            const [textHash, setTextHash] = useState('等待輸入...');
+            const [textStatus, setTextStatus] = useState('狀態: 等待操作');
+            const [fileResults, setFileResults] = useState([]);
+            const fileInputRef = useRef(null);
+
+            const calculateHashFromText = (text) => {
+                // 1. Normalize to \n
+                let normalized = text.replace(/\r\n/g, '\n');
+                // 2. Force Windows format (\r\n)
+                let windowsText = normalized.replace(/\n/g, '\r\n');
+                // 3. Remove BOM if present (rare in string input but good practice)
+                if (windowsText.charCodeAt(0) === 0xFEFF) {
+                    windowsText = windowsText.slice(1);
+                }
+                
+                // 4. Calc MD5 using global CryptoJS
+                if (window.CryptoJS) {
+                    let hash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(windowsText)).toString();
+                    setTextHash(hash);
+                    setTextStatus(`已處理純文字 (長度: ${windowsText.length} bytes, 強制轉換為 CRLF)`);
+                } else {
+                    setTextHash("Error");
+                    setTextStatus("CryptoJS 尚未載入");
+                }
+            };
+
+            const processFile = (file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const arrayBuffer = e.target.result;
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    
+                    let binaryString = "";
+                    let startIndex = 0;
+
+                    // Detect BOM (EF BB BF)
+                    if (uint8Array.length >= 3 && 
+                        uint8Array[0] === 0xEF && 
+                        uint8Array[1] === 0xBB && 
+                        uint8Array[2] === 0xBF) {
+                        startIndex = 3;
+                    }
+
+                    for (let i = startIndex; i < uint8Array.length; i++) {
+                        binaryString += String.fromCharCode(uint8Array[i]);
+                    }
+
+                    if (window.CryptoJS) {
+                        const hash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(binaryString)).toString();
+                        
+                        setFileResults(prev => [{
+                            filename: file.name,
+                            hash: hash,
+                            size: uint8Array.length,
+                            hasBOM: startIndex > 0
+                        }, ...prev]);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+
+            const handleTextChange = (e) => {
+                const val = e.target.value;
+                if (val) calculateHashFromText(val);
+                else {
+                    setTextHash("等待輸入...");
+                    setTextStatus("狀態: 等待操作");
+                }
+            };
+
+            const handleDrop = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    Array.from(e.dataTransfer.files).forEach(processFile);
+                }
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            };
+
+            const handleFileInputChange = (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    Array.from(e.target.files).forEach(processFile);
+                }
+            };
+
+            return (
+                <div className="space-y-6 animate-fadeIn">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800 mb-2">Config MD5 校驗工具</h2>
+                        <p className="text-slate-500 text-sm">設定檔內容一致性檢查 (Standard: 保留 \r, 移除 BOM)</p>
+                    </div>
+
+                    <div className="flex gap-4 mb-4">
+                        <button 
+                            onClick={() => setMode('text')} 
+                            className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${mode === 'text' ? 'bg-indigo-600 text-white shadow' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                        >
+                            <Clipboard size={18} /> 文字貼上模式
+                        </button>
+                        <button 
+                            onClick={() => setMode('file')} 
+                            className={`px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2 ${mode === 'file' ? 'bg-indigo-600 text-white shadow' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                        >
+                            <Upload size={18} /> 批次檔案模式
+                        </button>
+                    </div>
+
+                    {mode === 'text' ? (
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    將 config.json 內容貼上於此 (將自動補回 \r 符號):
+                                </label>
+                                <textarea 
+                                    onChange={handleTextChange}
+                                    className="w-full h-64 p-4 border border-slate-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-indigo-500 outline-none" 
+                                    placeholder='請貼上 JSON 內容...'
+                                ></textarea>
+                                <p className="mt-2 text-xs text-slate-500">
+                                    * 注意：網頁貼上會自動正規化換行，本工具會在計算前強制轉回 Windows 格式 (\r\n)。
+                                </p>
+                            </div>
+                            <div className="bg-slate-800 text-green-400 p-6 rounded-lg shadow-inner font-mono">
+                                <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Calculated MD5 Hash</div>
+                                <div className="text-3xl font-bold break-all">{textHash}</div>
+                                <div className="mt-4 text-sm text-slate-500 border-t border-slate-700 pt-2">
+                                    {textStatus}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div 
+                                onDrop={handleDrop}
+                                onDragOver={handleDragOver}
+                                onClick={() => fileInputRef.current.click()}
+                                className="w-full h-48 border-2 border-dashed border-slate-400 rounded-lg flex flex-col items-center justify-center cursor-pointer bg-slate-50 hover:bg-slate-100 transition"
+                            >
+                                <Upload className="h-12 w-12 text-slate-400 mb-3" />
+                                <p className="text-slate-600 font-medium text-lg">拖曳多個檔案至此</p>
+                                <p className="text-slate-400 text-sm mt-1">或是點擊選擇 (支援多選)</p>
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    className="hidden" 
+                                    multiple 
+                                    onChange={handleFileInputChange} 
+                                />
+                            </div>
+
+                            <div className="bg-slate-800 rounded-lg shadow-inner overflow-hidden">
+                                <div className="px-6 py-3 bg-slate-900 border-b border-slate-700 flex justify-between items-center">
+                                    <span className="text-slate-300 font-semibold text-sm">檢測結果列表</span>
+                                    <button onClick={() => setFileResults([])} className="text-xs text-slate-500 hover:text-white transition">清空列表</button>
+                                </div>
+                                <div className="overflow-x-auto max-h-[500px]">
+                                    <table className="w-full text-left text-sm text-slate-400 font-mono">
+                                        <thead className="text-xs uppercase bg-slate-700 text-slate-300 sticky top-0 z-10">
+                                            <tr>
+                                                <th className="px-6 py-3 w-1/4">檔案名稱</th>
+                                                <th className="px-6 py-3 w-1/2">MD5 Hash</th>
+                                                <th className="px-6 py-3 w-1/4">狀態 / 大小</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-700">
+                                            {fileResults.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="3" className="px-6 py-8 text-center text-slate-600 italic">
+                                                        尚未加入任何檔案
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                fileResults.map((res, idx) => (
+                                                    <tr key={idx} className="hover:bg-slate-700 transition">
+                                                        <td className="px-6 py-3 font-medium text-white break-all">{res.filename}</td>
+                                                        <td className="px-6 py-3 text-green-400 font-bold break-all tracking-wide select-all cursor-text">{res.hash}</td>
+                                                        <td className="px-6 py-3 text-xs text-slate-500">
+                                                            大小: {(res.size / 1024).toFixed(2)} KB
+                                                            {res.hasBOM && <span className="ml-2 text-xs bg-yellow-900 text-yellow-200 px-1 rounded">BOM 移除</span>}
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div className="text-xs text-slate-500 text-right">
+                                * 批次模式採用二進位讀取，完全比照 C++ 程式邏輯 (保留 \r, 移除 BOM)。
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const Sidebar = ({ user, goldenCvData, dataError, history, onClearHistory, onAddGroup, onDeleteGroup, onAddVariant, onDeleteVariant, onLoadHistory }) => {
             const [newGroupName, setNewGroupName] = useState("");
             const [activeHistoryTab, setActiveHistoryTab] = useState('rtp');
             const isAdmin = user && ADMIN_EMAILS.includes(user.email);
             const [expandedGroups, setExpandedGroups] = useState({});
+            const isGuest = !user || user.isAnonymous;
 
             const toggleGroup = (id) => setExpandedGroups(prev => ({...prev, [id]: !prev[id]}));
 
@@ -481,31 +984,28 @@
                     <div className="mb-6 flex-shrink-0">
                         <h3 className="font-bold text-slate-800 border-b pb-2 mb-3 flex items-center justify-between">
                             <div className="flex items-center gap-2"><Save size={18} /> 基準 CV 庫</div>
-                             {!user ? (
-                                <button onClick={handleGoogleLogin} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">管理登入</button>
+                             {isGuest ? (
+                                <button onClick={handleGoogleLogin} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">管理員登入</button>
                             ) : (
                                 <button onClick={() => auth.signOut()} className="text-xs text-red-500 hover:underline">登出</button>
                             )}
                         </h3>
-                        
-                        {user && (
-                             <div className="text-xs text-slate-500 mb-2 text-right">{user.email}</div>
-                        )}
-                        
+                        {!isGuest && <div className="text-xs text-slate-500 mb-2 text-right">{user.email}</div>}
                         {isAdmin && (
                             <div className="flex gap-2 mb-2">
-                                <input 
-                                value={newGroupName} 
-                                onChange={(e) => setNewGroupName(e.target.value)} 
-                                placeholder="新群組名稱" 
-                                className="flex-1 px-2 py-1 bg-slate-100 border rounded text-sm"
-                                />
+                                <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="新群組名稱" className="flex-1 px-2 py-1 bg-slate-100 border rounded text-sm" />
                                 <button onClick={handleAddGroup} className="bg-indigo-600 text-white p-1 rounded hover:bg-indigo-700"><Plus size={16}/></button>
                             </div>
                         )}
-                        
                         <div className="overflow-y-auto max-h-48 pr-1 space-y-2 custom-scrollbar">
-                                {goldenCvData.length === 0 && <p className="text-center text-xs text-slate-400 py-2">無共享資料...</p>}
+                                {dataError && (
+                                    <div className="text-center p-2 bg-red-50 rounded-lg border border-red-100 mb-2">
+                                        <div className="flex justify-center mb-1 text-red-500"><AlertCircle size={16} /></div>
+                                        <p className="text-xs text-red-600 font-bold mb-1">讀取失敗：權限不足</p>
+                                        <p className="text-[10px] text-red-400">請確認資料庫已開放讀取權限<br/>(allow read: if true)</p>
+                                    </div>
+                                )}
+                                {!dataError && goldenCvData.length === 0 && <p className="text-center text-xs text-slate-400 py-2">無共享資料...</p>}
                                 {goldenCvData.map(g => (
                                 <div key={g.id} className="border rounded bg-slate-50 text-sm">
                                     <div className="p-2 flex justify-between items-center cursor-pointer hover:bg-slate-100" onClick={() => toggleGroup(g.id)}>
@@ -530,7 +1030,6 @@
                                 ))}
                             </div>
                     </div>
-
                     <div className="flex-1 flex flex-col min-h-0">
                         <div className="flex justify-between items-center border-b pb-2 mb-3">
                             <h3 className="font-bold text-slate-800 flex items-center gap-2"><History size={18}/> 歷史紀錄</h3>
@@ -542,7 +1041,7 @@
                         </div>
                         <div className="overflow-y-auto flex-1 custom-scrollbar space-y-2 pr-1">
                             {history[activeHistoryTab]?.map((item, idx) => (
-                            <div key={idx} className="p-2 border rounded text-sm hover:bg-slate-50 cursor-default">
+                            <div key={idx} onClick={() => onLoadHistory(activeHistoryTab, item)} className="p-2 border rounded text-sm hover:bg-indigo-50 cursor-pointer transition-colors">
                                 {activeHistoryTab === 'rtp' ? (
                                 <div>
                                     <span className="font-semibold text-sky-700">RTP {item.rtp}%</span>
@@ -563,39 +1062,67 @@
             );
         };
 
-        // --- Main App ---
         const App = () => {
             const [user, setUser] = useState(null);
-            const [activeTab, setActiveTab] = useState('rtp');
+            const [activeTab, setActiveTab] = useLocalStorage('ciCalc_activeTab', 'rtp');
             const [goldenCvData, setGoldenCvData] = useState([]);
-            
+            const [dataError, setDataError] = useState(null);
+            const [toastMsg, setToastMsg] = useState(null);
             const [rtpHistory, setRtpHistory] = useLocalStorage('ciCalc_rtpHistory', []);
             const [hitRateHistory, setHitRateHistory] = useLocalStorage('ciCalc_hitRateHistory', []);
+            const [importedData, setImportedData] = useState(null);
+
+            const showToast = (msg) => setToastMsg(msg);
+
+            const handleLoadHistory = (type, data) => {
+                setActiveTab(type === 'rtp' ? 'rtp' : type === 'hitRate' ? 'hitRate' : 'rtp');
+                setImportedData({ ...data, type, timestamp: Date.now() });
+            };
 
             useEffect(() => {
                 const initAuth = async () => {
                   if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                       await auth.signInWithCustomToken(__initial_auth_token);
-                  } 
+                  }
                 };
                 initAuth();
-                const unsubscribe = auth.onAuthStateChanged(setUser);
+                const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+                    setUser(currentUser);
+                    if (!currentUser) {
+                        auth.signInAnonymously().catch(e => console.error("Anonymous auth error:", e));
+                    }
+                });
                 return () => unsubscribe();
             }, []);
 
             useEffect(() => {
-                // Compat version of Firestore onSnapshot
                 const unsubscribe = db.collection(`artifacts/${appId}/public/data/goldenCVGroups`)
                   .onSnapshot((snapshot) => {
                       const data = snapshot.docs.map(d => ({id: d.id, ...d.data()}));
                       setGoldenCvData(data);
-                  }, (error) => console.error("Firestore error:", error));
+                      setDataError(null);
+                  }, (error) => {
+                      console.error("Firestore error:", error);
+                      setDataError(error.message);
+                  });
                 return () => unsubscribe();
             }, []);
 
             const saveHistory = (type, data) => {
-                if (type === 'rtp') setRtpHistory(prev => [data, ...prev].slice(0, 50));
-                else setHitRateHistory(prev => [data, ...prev].slice(0, 50));
+                const updateHistory = (prev) => {
+                    // Check if identical to the latest entry to prevent duplicates
+                    if (prev.length > 0) {
+                        const latest = prev[0];
+                        if (JSON.stringify(latest) === JSON.stringify(data)) {
+                            return prev;
+                        }
+                    }
+                    // Add new data and limit to 30 items
+                    return [data, ...prev].slice(0, 30);
+                };
+
+                if (type === 'rtp') setRtpHistory(updateHistory);
+                else setHitRateHistory(updateHistory);
             };
 
             const clearHistory = (type) => {
@@ -607,17 +1134,13 @@
 
             const addGroup = async (name) => {
                 if (!user) return;
-                try { 
-                    await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).add({ name, variants: [] }); 
-                } 
+                try { await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).add({ name, variants: [] }); } 
                 catch(e) { alert("權限不足"); }
             };
 
             const deleteGroup = async (id) => {
                 if (!user || !confirm("確定刪除?")) return;
-                try { 
-                    await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).doc(id).delete(); 
-                } 
+                try { await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).doc(id).delete(); } 
                 catch(e) { alert("權限不足"); }
             };
 
@@ -640,63 +1163,40 @@
 
             return (
                 <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-indigo-100">
+                    <Toast message={toastMsg} onClose={() => setToastMsg(null)} />
                     <div className="max-w-7xl mx-auto p-4 lg:p-6 lg:flex lg:gap-6">
                         <div className="flex-1 min-w-0">
                             <header className="mb-6">
                                 <h1 className="text-3xl font-bold text-slate-900 tracking-tight">遊戲數據信賴區間計算機</h1>
                                 <p className="text-slate-500 mt-1">Game Mathematics Verification Tool</p>
                             </header>
-
                             <div className="bg-white rounded-t-xl border-b border-slate-200 flex overflow-x-auto no-scrollbar">
                                 {[
                                     { id: 'rtp', icon: LineChart, label: 'RTP 驗證' },
                                     { id: 'estimator', icon: Target, label: '模擬次數估算' },
                                     { id: 'hitRate', icon: Calculator, label: '命中率驗證' },
+                                    { id: 'ztest', icon: Activity, label: 'Z 檢定 (同賽果)' },
+                                    { id: 'md5', icon: FileJson, label: 'MD5 校驗' },
                                 ].map(tab => {
                                     const Icon = tab.icon;
                                     return (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => setActiveTab(tab.id)}
-                                            className={`flex items-center gap-2 px-6 py-4 font-medium text-sm transition-colors whitespace-nowrap
-                                            ${activeTab === tab.id ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/30' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}
-                                            `}
-                                        >
-                                            <Icon size={18} />
-                                            {tab.label}
+                                        <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-6 py-4 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === tab.id ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/30' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}>
+                                            <Icon size={18} />{tab.label}
                                         </button>
                                     );
                                 })}
                             </div>
-
                             <div className="bg-white rounded-b-xl shadow-lg p-6 min-h-[500px]">
-                                {activeTab === 'rtp' && (
-                                    <RTPCalculator goldenCvData={goldenCvData} onSaveHistory={saveHistory} />
-                                )}
-                                {activeTab === 'estimator' && (
-                                    <SimulationEstimator goldenCvData={goldenCvData} />
-                                )}
-                                {activeTab === 'hitRate' && (
-                                    <HitRateCalculator onSaveHistory={saveHistory} />
-                                )}
+                                {activeTab === 'rtp' && <RTPCalculator goldenCvData={goldenCvData} onSaveHistory={saveHistory} showToast={showToast} importedData={importedData} />}
+                                {activeTab === 'estimator' && <SimulationEstimator goldenCvData={goldenCvData} />}
+                                {activeTab === 'hitRate' && <HitRateCalculator onSaveHistory={saveHistory} showToast={showToast} importedData={importedData} />}
+                                {activeTab === 'ztest' && <ZTestCalculator goldenCvData={goldenCvData} showToast={showToast} />}
+                                {activeTab === 'md5' && <Md5Validator />}
                             </div>
-
-                            <footer className="mt-8 text-center text-slate-400 text-sm">
-                                Developed by Pascal Huang. &copy; 2025.
-                            </footer>
+                            <footer className="mt-8 text-center text-slate-400 text-sm">Developed by Pascal Huang. &copy; 2025.</footer>
                         </div>
-
                         <div className="lg:w-80 mt-8 lg:mt-0 flex-shrink-0">
-                            <Sidebar 
-                                user={user}
-                                goldenCvData={goldenCvData}
-                                history={{ rtp: rtpHistory, hitRate: hitRateHistory }}
-                                onClearHistory={clearHistory}
-                                onAddGroup={addGroup}
-                                onDeleteGroup={deleteGroup}
-                                onAddVariant={addVariant}
-                                onDeleteVariant={deleteVariant}
-                            />
+                            <Sidebar user={user} goldenCvData={goldenCvData} dataError={dataError} history={{ rtp: rtpHistory, hitRate: hitRateHistory }} onClearHistory={clearHistory} onAddGroup={addGroup} onDeleteGroup={deleteGroup} onAddVariant={addVariant} onDeleteVariant={deleteVariant} onLoadHistory={handleLoadHistory} />
                         </div>
                     </div>
                 </div>
