@@ -74,6 +74,7 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useMemo, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
+        // 修正重點：確保 Edit2, Check 等圖示都有正確引入
         import { 
           Calculator, Target, LineChart, History, Bookmark, Trash2, 
           Edit2, Copy, ChevronDown, ChevronUp, Plus, User, LogOut, Save, Menu, AlertCircle, FileJson, Clipboard, Upload, Activity, FolderOpen, Search, X, Settings, Check
@@ -217,6 +218,41 @@
             );
         };
 
+        const ResultCard = ({ level, zScore, lower, upper, actualVal, isRtp }) => {
+            const [show, setShow] = useState(false);
+            useEffect(() => setShow(true), []);
+
+            let status = null;
+            let statusColor = "";
+            if (actualVal !== null && !isNaN(actualVal) && actualVal !== "") {
+                const val = isRtp ? parseFloat(actualVal) / 100 : parseFloat(actualVal) / 100;
+                const isPass = val >= lower && val <= upper;
+                status = isPass ? "PASS" : "FAIL";
+                statusColor = isPass ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800";
+            }
+            const borderColors = {
+                '95%': isRtp ? 'border-sky-500' : 'border-emerald-500',
+                '99%': isRtp ? 'border-indigo-500' : 'border-teal-500',
+                '99.7%': isRtp ? 'border-violet-500' : 'border-cyan-500',
+            };
+            return (
+                <div className={`transform transition-all duration-500 ${show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} bg-white p-4 rounded-lg border-l-4 ${borderColors[level]} shadow-sm mb-3`}>
+                    <div className="flex justify-between items-center mb-1">
+                        <div className="font-bold text-lg text-slate-700">{level} 信賴區間</div>
+                        <div className="flex items-center gap-2">
+                        {status && <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${statusColor}`}>{status}</span>}
+                        <span className="text-xs text-slate-400">Z: {zScore}</span>
+                        </div>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-md text-center">
+                        <span className="font-mono text-lg text-slate-800 font-medium">{(lower * 100).toFixed(4)}%</span>
+                        <span className="mx-2 text-slate-400">~</span>
+                        <span className="font-mono text-lg text-slate-800 font-medium">{(upper * 100).toFixed(4)}%</span>
+                    </div>
+                </div>
+            );
+        };
+
         const ModalSelector = ({ goldenCvData, onSelect, placeholder = "選擇基準..." }) => {
             const [isOpen, setIsOpen] = useState(false);
             const [selectedGroup, setSelectedGroup] = useState(null);
@@ -318,12 +354,18 @@
             );
         };
 
-        // --- NEW: Admin Modal Component ---
-        const AdminModal = ({ isOpen, onClose, goldenCvData, onAddGroup, onDeleteGroup, onAddVariant, onDeleteVariant }) => {
+        // --- NEW: Admin Modal Component with Edit ---
+        const AdminModal = ({ isOpen, onClose, goldenCvData, onAddGroup, onRenameGroup, onDeleteGroup, onAddVariant, onUpdateVariant, onDeleteVariant }) => {
             const [newGroupName, setNewGroupName] = useState("");
             const [addingVariantGroupId, setAddingVariantGroupId] = useState(null);
             const [newVariantForm, setNewVariantForm] = useState({ name: "", rtp: "", cv: "" });
             
+            // Edit States
+            const [editingGroupId, setEditingGroupId] = useState(null);
+            const [tempGroupName, setTempGroupName] = useState("");
+            const [editingVariantKey, setEditingVariantKey] = useState(null); // format: "groupId-idx"
+            const [tempVariant, setTempVariant] = useState({ name: "", rtp: "", cv: "" });
+
             if (!isOpen) return null;
 
             const handleAddGroupSubmit = () => {
@@ -351,6 +393,30 @@
                     alert("請填寫完整資訊");
                 }
             };
+
+            // Edit Logic
+            const startEditGroup = (group) => {
+                setEditingGroupId(group.id);
+                setTempGroupName(group.name);
+            };
+            const saveEditGroup = (groupId) => {
+                if (tempGroupName.trim()) {
+                    onRenameGroup(groupId, tempGroupName);
+                }
+                setEditingGroupId(null);
+            };
+
+            const startEditVariant = (groupId, idx, variant) => {
+                setEditingVariantKey(`${groupId}-${idx}`);
+                setTempVariant({ ...variant });
+            };
+            const saveEditVariant = (groupId, idx) => {
+                if (tempVariant.name && tempVariant.rtp && tempVariant.value) {
+                    onUpdateVariant(groupId, idx, tempVariant.name, parseFloat(tempVariant.rtp), parseFloat(tempVariant.value));
+                }
+                setEditingVariantKey(null);
+            };
+
 
             return (
                 <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn">
@@ -380,25 +446,86 @@
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {goldenCvData.map(group => (
                                     <div key={group.id} className="bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col h-full">
-                                        <div className="p-3 border-b border-slate-100 bg-slate-100/50 flex justify-between items-center">
-                                            <h4 className="font-bold text-slate-700">{group.name}</h4>
-                                            <button onClick={() => onDeleteGroup(group.id)} className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors" title="刪除群組">
-                                                <Trash2 size={16} />
-                                            </button>
+                                        <div className="p-3 border-b border-slate-100 bg-slate-100/50 flex justify-between items-center h-12">
+                                            {editingGroupId === group.id ? (
+                                                <div className="flex gap-1 w-full">
+                                                    <input 
+                                                        value={tempGroupName} 
+                                                        onChange={(e) => setTempGroupName(e.target.value)}
+                                                        className="flex-1 px-2 py-1 text-sm border rounded"
+                                                        autoFocus
+                                                    />
+                                                    <button onClick={() => saveEditGroup(group.id)} className="text-green-600 hover:bg-green-50 p-1 rounded"><Check size={16}/></button>
+                                                    <button onClick={() => setEditingGroupId(null)} className="text-slate-400 hover:bg-slate-200 p-1 rounded"><X size={16}/></button>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <h4 className="font-bold text-slate-700 truncate flex-1" title={group.name}>{group.name}</h4>
+                                                    <div className="flex gap-1">
+                                                        <button onClick={() => startEditGroup(group)} className="text-slate-400 hover:text-indigo-500 p-1 rounded hover:bg-indigo-50 transition-colors">
+                                                            <Edit2 size={16} />
+                                                        </button>
+                                                        <button onClick={() => onDeleteGroup(group.id)} className="text-slate-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors">
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                         <div className="p-3 flex-1 space-y-2">
                                             {group.variants?.length === 0 && <p className="text-xs text-slate-400 italic text-center py-2">尚無玩法資料</p>}
-                                            {group.variants?.map((v, idx) => (
-                                                <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded hover:bg-slate-100 group">
-                                                    <div>
-                                                        <div className="font-medium text-slate-700">{v.name}</div>
-                                                        <div className="text-xs text-slate-500">RTP: {v.rtp}% | CV: {v.value}</div>
+                                            {group.variants?.map((v, idx) => {
+                                                const isEditing = editingVariantKey === `${group.id}-${idx}`;
+                                                return (
+                                                    <div key={idx} className={`text-sm p-2 rounded border ${isEditing ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-transparent hover:bg-slate-100 group'}`}>
+                                                        {isEditing ? (
+                                                            <div className="space-y-2">
+                                                                <input 
+                                                                    value={tempVariant.name}
+                                                                    onChange={(e) => setTempVariant({...tempVariant, name: e.target.value})}
+                                                                    className="w-full text-xs p-1 border rounded"
+                                                                    placeholder="名稱"
+                                                                />
+                                                                <div className="flex gap-1">
+                                                                    <input 
+                                                                        type="number"
+                                                                        value={tempVariant.rtp}
+                                                                        onChange={(e) => setTempVariant({...tempVariant, rtp: e.target.value})}
+                                                                        className="w-1/2 text-xs p-1 border rounded"
+                                                                        placeholder="RTP"
+                                                                    />
+                                                                    <input 
+                                                                        type="number"
+                                                                        value={tempVariant.value}
+                                                                        onChange={(e) => setTempVariant({...tempVariant, value: e.target.value})}
+                                                                        className="w-1/2 text-xs p-1 border rounded"
+                                                                        placeholder="CV"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex justify-end gap-2">
+                                                                    <button onClick={() => setEditingVariantKey(null)} className="text-xs text-slate-500 hover:underline">取消</button>
+                                                                    <button onClick={() => saveEditVariant(group.id, idx)} className="text-xs bg-indigo-500 text-white px-2 py-1 rounded hover:bg-indigo-600">儲存</button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex justify-between items-center">
+                                                                <div>
+                                                                    <div className="font-medium text-slate-700">{v.name}</div>
+                                                                    <div className="text-xs text-slate-500">RTP: {v.rtp}% | CV: {v.value}</div>
+                                                                </div>
+                                                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                                                    <button onClick={() => startEditVariant(group.id, idx, v)} className="text-slate-300 hover:text-indigo-500 p-1">
+                                                                        <Edit2 size={14} />
+                                                                    </button>
+                                                                    <button onClick={() => onDeleteVariant(group.id, v)} className="text-slate-300 hover:text-red-500 p-1">
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <button onClick={() => onDeleteVariant(group.id, v)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                             
                                             {/* Add Variant Form */}
                                             {addingVariantGroupId === group.id && (
@@ -562,7 +689,7 @@
 
         const SimulationEstimator = ({ goldenCvData }) => {
             const [rtp, setRtp] = useLocalStorage('ciCalc_est_rtp', 96.5);
-            const [cv, setLocalStorage] = useLocalStorage('ciCalc_est_cv', 5.5);
+            const [cv, setCv] = useLocalStorage('ciCalc_est_cv', 5.5);
             const [confidence, setConfidence] = useLocalStorage('ciCalc_est_conf', 1.96);
             const [error, setError] = useLocalStorage('ciCalc_est_err', 0.1);
             const [result, setResult] = useState(null);
@@ -582,7 +709,7 @@
                 const variant = group?.variants[variantIndex];
                 if (variant) {
                     setRtp(variant.rtp);
-                    setLocalStorage(variant.value);
+                    setCv(variant.value);
                 }
             };
 
@@ -597,7 +724,7 @@
                             <label className="block text-sm font-medium text-slate-600 mb-1">理論 RTP (%) & CV</label>
                             <div className="flex gap-2">
                                 <input type="number" value={rtp} onChange={(e) => setRtp(Number(e.target.value))} className="w-1/2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg" placeholder="RTP" />
-                                <input type="number" value={cv} onChange={(e) => setLocalStorage(Number(e.target.value))} className="w-1/2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg" placeholder="CV" />
+                                <input type="number" value={cv} onChange={(e) => setCv(Number(e.target.value))} className="w-1/2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg" placeholder="CV" />
                             </div>
                         </div>
                         <div>
@@ -1116,7 +1243,7 @@
             );
         };
 
-        const Sidebar = ({ user, goldenCvData, dataError, history, onClearHistory, onAddGroup, onDeleteGroup, onAddVariant, onDeleteVariant, onLoadHistory }) => {
+        const Sidebar = ({ user, goldenCvData, dataError, history, onClearHistory, onAddGroup, onRenameGroup, onDeleteGroup, onAddVariant, onUpdateVariant, onDeleteVariant, onLoadHistory }) => {
             const [newGroupName, setNewGroupName] = useState("");
             const [activeHistoryTab, setActiveHistoryTab] = useState('rtp');
             const isAdmin = user && ADMIN_EMAILS.includes(user.email);
@@ -1156,7 +1283,19 @@
                 <div className="bg-white rounded-xl shadow-lg p-6 h-full sticky top-8 flex flex-col max-h-[calc(100vh-4rem)]">
                     <div className="mb-6 flex-shrink-0">
                         <h3 className="font-bold text-slate-800 border-b pb-2 mb-3 flex items-center justify-between">
-                            <div className="flex items-center gap-2"><Save size={18} /> 基準 CV 庫</div>
+                            <div className="flex items-center gap-2">
+                                <Save size={18} /> 
+                                <span>基準 CV 庫</span>
+                                {isAdmin && (
+                                    <button 
+                                        onClick={() => setShowAdminModal(true)} 
+                                        className="text-slate-400 hover:text-indigo-600 p-1 rounded-full hover:bg-indigo-50 transition-colors ml-1"
+                                        title="數據管理"
+                                    >
+                                        <Settings size={16} />
+                                    </button>
+                                )}
+                            </div>
                              {isGuest ? (
                                 <button onClick={handleGoogleLogin} className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">管理員登入</button>
                             ) : (
@@ -1164,16 +1303,6 @@
                             )}
                         </h3>
                         {!isGuest && <div className="text-xs text-slate-500 mb-2 text-right">{user.email}</div>}
-                        
-                        {/* New Admin Button: Opens the Management Modal */}
-                        {isAdmin && (
-                            <button 
-                                onClick={() => setShowAdminModal(true)} 
-                                className="w-full mb-3 bg-slate-800 text-white text-xs py-2 rounded-lg hover:bg-slate-700 flex items-center justify-center gap-2 transition-colors"
-                            >
-                                <Settings size={14} /> 開啟數據管理面板
-                            </button>
-                        )}
                         
                         <div className="overflow-y-auto max-h-48 pr-1 space-y-2 custom-scrollbar">
                                 {dataError && (
@@ -1239,8 +1368,10 @@
                         onClose={() => setShowAdminModal(false)}
                         goldenCvData={goldenCvData}
                         onAddGroup={onAddGroup}
+                        onRenameGroup={onRenameGroup}
                         onDeleteGroup={onDeleteGroup}
                         onAddVariant={onAddVariant}
+                        onUpdateVariant={onUpdateVariant}
                         onDeleteVariant={onDeleteVariant}
                     />
                 </div>
@@ -1323,6 +1454,12 @@
                 catch(e) { alert("權限不足"); }
             };
 
+            const renameGroup = async (id, newName) => {
+                 if (!user) return;
+                 try { await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).doc(id).update({ name: newName }); }
+                 catch(e) { alert("權限不足"); }
+            };
+
             const deleteGroup = async (id) => {
                 if (!user || !confirm("確定刪除?")) return;
                 try { await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).doc(id).delete(); } 
@@ -1337,6 +1474,22 @@
                 } catch(e) { alert("權限不足"); }
             };
             
+            const updateVariant = async (groupId, variantIndex, name, rtp, value) => {
+                try {
+                    // Firestore array update by index requires reading and writing the whole array
+                    const group = goldenCvData.find(g => g.id === groupId);
+                    if(!group) return;
+                    
+                    const newVariants = [...group.variants];
+                    if(variantIndex >= 0 && variantIndex < newVariants.length) {
+                        newVariants[variantIndex] = { name, rtp, value };
+                        await db.collection(`artifacts/${appId}/public/data/goldenCVGroups`).doc(groupId).update({
+                            variants: newVariants
+                        });
+                    }
+                } catch(e) { alert("權限不足"); }
+            };
+
             const deleteVariant = async (groupId, variant) => {
                 if(!confirm("刪除此玩法?")) return;
                 try {
@@ -1381,7 +1534,20 @@
                             <footer className="mt-8 text-center text-slate-400 text-sm">Developed by Pascal Huang. &copy; 2025.</footer>
                         </div>
                         <div className="lg:w-80 mt-8 lg:mt-0 flex-shrink-0">
-                            <Sidebar user={user} goldenCvData={goldenCvData} dataError={dataError} history={{ rtp: rtpHistory, hitRate: hitRateHistory }} onClearHistory={clearHistory} onAddGroup={addGroup} onDeleteGroup={deleteGroup} onAddVariant={addVariant} onDeleteVariant={deleteVariant} onLoadHistory={handleLoadHistory} />
+                            <Sidebar 
+                                user={user} 
+                                goldenCvData={goldenCvData} 
+                                dataError={dataError} 
+                                history={{ rtp: rtpHistory, hitRate: hitRateHistory }} 
+                                onClearHistory={clearHistory} 
+                                onAddGroup={addGroup} 
+                                onRenameGroup={renameGroup}
+                                onDeleteGroup={deleteGroup} 
+                                onAddVariant={addVariant} 
+                                onUpdateVariant={updateVariant}
+                                onDeleteVariant={deleteVariant} 
+                                onLoadHistory={handleLoadHistory} 
+                            />
                         </div>
                     </div>
                 </div>
