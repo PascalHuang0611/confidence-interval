@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>遊戲數據信賴區間計算機 (React版)</title>
+    <title>遊戲數值驗證工具 (Game Math Validator)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <!-- 引入 CryptoJS 用於 MD5 -->
@@ -74,10 +74,10 @@
     <script type="text/babel" data-type="module">
         import React, { useState, useEffect, useMemo, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
-        // 修正重點：確保 Edit2, Check 等圖示都有正確引入
+        // 確保引入所有需要的 Icon
         import { 
           Calculator, Target, LineChart, History, Bookmark, Trash2, 
-          Edit2, Copy, ChevronDown, ChevronUp, Plus, User, LogOut, Save, Menu, AlertCircle, FileJson, Clipboard, Upload, Activity, FolderOpen, Search, X, Settings, Check
+          Edit2, Copy, ChevronDown, ChevronUp, Plus, User, LogOut, Save, Menu, AlertCircle, FileJson, Clipboard, Upload, Activity, FolderOpen, Search, X, Settings, Check, BookOpen
         } from 'lucide-react';
         
         // --- Firebase Init ---
@@ -1504,9 +1504,17 @@
                     <Toast message={toastMsg} onClose={() => setToastMsg(null)} />
                     <div className="max-w-7xl mx-auto p-4 lg:p-6 lg:flex lg:gap-6">
                         <div className="flex-1 min-w-0">
-                            <header className="mb-6">
-                                <h1 className="text-3xl font-bold text-slate-900 tracking-tight">遊戲數據信賴區間計算機</h1>
+                            <header className="mb-6 text-center">
+                                <h1 className="text-3xl font-bold text-slate-900 tracking-tight">遊戲數值驗證工具</h1>
                                 <p className="text-slate-500 mt-1">Game Mathematics Verification Tool</p>
+                                <a 
+                                    href="https://trevi-technology.sg.larksuite.com/wiki/YPbVwKH8niL9XdkEKSwl4H9cglT?fromScene=spaceOverview" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 mt-2 text-xs text-indigo-500 hover:text-indigo-600 hover:underline transition-colors"
+                                >
+                                    <BookOpen size={14} /> 線上說明文件
+                                </a>
                             </header>
                             <div className="bg-white rounded-t-xl border-b border-slate-200 flex overflow-x-auto no-scrollbar">
                                 {[
