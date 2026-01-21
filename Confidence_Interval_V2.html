@@ -1043,12 +1043,13 @@
 
         const Md5Validator = () => {
             const [mode, setMode] = useState('text');
-            const [textHash, setTextHash] = useState('等待輸入...');
+            const [hashes, setHashes] = useState({ config: '等待輸入...', standard: '等待輸入...' });
             const [textStatus, setTextStatus] = useState('狀態: 等待操作');
             const [fileResults, setFileResults] = useState([]);
             const fileInputRef = useRef(null);
 
             const calculateHashFromText = (text) => {
+                // --- 1. Config MD5 (Original Logic: Force CRLF, Latin1) ---
                 // 1. Normalize to \n
                 let normalized = text.replace(/\r\n/g, '\n');
                 // 2. Force Windows format (\r\n)
@@ -1058,13 +1059,20 @@
                     windowsText = windowsText.slice(1);
                 }
                 
-                // 4. Calc MD5 using global CryptoJS
+                // --- 2. Standard MD5 (StrErr/Common Logic: Raw Input, UTF-8) ---
+                // 一般網頁工具直接對輸入框的文字做雜湊 (通常是 UTF-8)
+                
                 if (window.CryptoJS) {
-                    let hash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(windowsText)).toString();
-                    setTextHash(hash);
-                    setTextStatus(`已處理純文字 (長度: ${windowsText.length} bytes, 強制轉換為 CRLF)`);
+                    // Config MD5: 保留原本的 Latin1 解析 (模擬二進位處理)
+                    const configHash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(windowsText)).toString();
+                    
+                    // Standard MD5: 使用 CryptoJS 預設 (UTF-8) 處理原始輸入
+                    const standardHash = window.CryptoJS.MD5(text).toString();
+
+                    setHashes({ config: configHash, standard: standardHash });
+                    setTextStatus(`已處理純文字 (長度: ${text.length} chars)`);
                 } else {
-                    setTextHash("Error");
+                    setHashes({ config: "Error", standard: "Error" });
                     setTextStatus("CryptoJS 尚未載入");
                 }
             };
@@ -1075,7 +1083,7 @@
                     const arrayBuffer = e.target.result;
                     const uint8Array = new Uint8Array(arrayBuffer);
                     
-                    let binaryString = "";
+                    let fullBinaryString = "";
                     let startIndex = 0;
 
                     // Detect BOM (EF BB BF)
@@ -1086,16 +1094,24 @@
                         startIndex = 3;
                     }
 
-                    for (let i = startIndex; i < uint8Array.length; i++) {
-                        binaryString += String.fromCharCode(uint8Array[i]);
+                    // Build Full Binary String (for Standard MD5)
+                    for (let i = 0; i < uint8Array.length; i++) {
+                        fullBinaryString += String.fromCharCode(uint8Array[i]);
                     }
+                    
+                    // Slice for Config MD5 (Skip BOM)
+                    const configBinaryString = startIndex > 0 ? fullBinaryString.slice(startIndex) : fullBinaryString;
 
                     if (window.CryptoJS) {
-                        const hash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(binaryString)).toString();
+                        // Config MD5: Skip BOM (if any)
+                        const configHash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(configBinaryString)).toString();
+                        // Standard MD5: Full Content (Like StrErr)
+                        const standardHash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(fullBinaryString)).toString();
                         
                         setFileResults(prev => [{
                             filename: file.name,
-                            hash: hash,
+                            configHash: configHash,
+                            standardHash: standardHash,
                             size: uint8Array.length,
                             hasBOM: startIndex > 0
                         }, ...prev]);
@@ -1108,7 +1124,7 @@
                 const val = e.target.value;
                 if (val) calculateHashFromText(val);
                 else {
-                    setTextHash("等待輸入...");
+                    setHashes({ config: "等待輸入...", standard: "等待輸入..." });
                     setTextStatus("狀態: 等待操作");
                 }
             };
@@ -1136,7 +1152,7 @@
                 <div className="space-y-6 animate-fadeIn">
                     <div>
                         <h2 className="text-2xl font-bold text-slate-800 mb-2">Config MD5 校驗工具</h2>
-                        <p className="text-slate-500 text-sm">設定檔內容一致性檢查 (Standard: 保留 \r, 移除 BOM)</p>
+                        <p className="text-slate-500 text-sm">設定檔內容一致性檢查 (同時顯示特化與標準 MD5)</p>
                     </div>
 
                     <div className="flex gap-4 mb-4">
@@ -1158,7 +1174,7 @@
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    將 config.json 內容貼上於此 (將自動補回 \r 符號):
+                                    將 config.json 內容貼上於此:
                                 </label>
                                 <textarea 
                                     onChange={handleTextChange}
@@ -1166,15 +1182,28 @@
                                     placeholder='請貼上 JSON 內容...'
                                 ></textarea>
                                 <p className="mt-2 text-xs text-slate-500">
-                                    * 注意：網頁貼上會自動正規化換行，本工具會在計算前強制轉回 Windows 格式 (\r\n)。
+                                    * Config MD5 會強制轉為 Windows 格式 (\r\n)；Standard MD5 則依網頁輸入原始格式。
                                 </p>
                             </div>
-                            <div className="bg-slate-800 text-green-400 p-6 rounded-lg shadow-inner font-mono">
-                                <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Calculated MD5 Hash</div>
-                                <div className="text-3xl font-bold break-all">{textHash}</div>
-                                <div className="mt-4 text-sm text-slate-500 border-t border-slate-700 pt-2">
-                                    {textStatus}
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="bg-slate-800 text-green-400 p-6 rounded-lg shadow-inner font-mono">
+                                    <div className="text-slate-400 text-xs uppercase tracking-wider mb-1 flex justify-between">
+                                        <span>Config MD5 (特化)</span>
+                                        <span className="text-[10px] bg-slate-700 px-1 rounded text-slate-300">強制 CRLF / 去 BOM</span>
+                                    </div>
+                                    <div className="text-2xl font-bold break-all">{hashes.config}</div>
                                 </div>
+                                <div className="bg-slate-800 text-sky-400 p-6 rounded-lg shadow-inner font-mono">
+                                    <div className="text-slate-400 text-xs uppercase tracking-wider mb-1 flex justify-between">
+                                        <span>Standard MD5 (StrErr)</span>
+                                        <span className="text-[10px] bg-slate-700 px-1 rounded text-slate-300">原始輸入 / 一般</span>
+                                    </div>
+                                    <div className="text-2xl font-bold break-all">{hashes.standard}</div>
+                                </div>
+                            </div>
+                             <div className="text-sm text-slate-500 text-center">
+                                {textStatus}
                             </div>
                         </div>
                     ) : (
@@ -1206,26 +1235,28 @@
                                     <table className="w-full text-left text-sm text-slate-400 font-mono">
                                         <thead className="text-xs uppercase bg-slate-700 text-slate-300 sticky top-0 z-10">
                                             <tr>
-                                                <th className="px-6 py-3 w-1/4">檔案名稱</th>
-                                                <th className="px-6 py-3 w-1/2">MD5 Hash</th>
-                                                <th className="px-6 py-3 w-1/4">狀態 / 大小</th>
+                                                <th className="px-4 py-3">檔案名稱</th>
+                                                <th className="px-4 py-3">Config MD5 <span className="text-[10px] opacity-50 block normal-case">(特化:去BOM)</span></th>
+                                                <th className="px-4 py-3">Standard MD5 <span className="text-[10px] opacity-50 block normal-case">(一般:含BOM)</span></th>
+                                                <th className="px-4 py-3">資訊</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-700">
                                             {fileResults.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan="3" className="px-6 py-8 text-center text-slate-600 italic">
+                                                    <td colSpan="4" className="px-6 py-8 text-center text-slate-600 italic">
                                                         尚未加入任何檔案
                                                     </td>
                                                 </tr>
                                             ) : (
                                                 fileResults.map((res, idx) => (
                                                     <tr key={idx} className="hover:bg-slate-700 transition">
-                                                        <td className="px-6 py-3 font-medium text-white break-all">{res.filename}</td>
-                                                        <td className="px-6 py-3 text-green-400 font-bold break-all tracking-wide select-all cursor-text">{res.hash}</td>
-                                                        <td className="px-6 py-3 text-xs text-slate-500">
-                                                            大小: {(res.size / 1024).toFixed(2)} KB
-                                                            {res.hasBOM && <span className="ml-2 text-xs bg-yellow-900 text-yellow-200 px-1 rounded">BOM 移除</span>}
+                                                        <td className="px-4 py-3 font-medium text-white break-all max-w-[200px]">{res.filename}</td>
+                                                        <td className="px-4 py-3 text-green-400 font-bold break-all tracking-wide select-all cursor-text">{res.configHash}</td>
+                                                        <td className="px-4 py-3 text-sky-400 font-bold break-all tracking-wide select-all cursor-text">{res.standardHash}</td>
+                                                        <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
+                                                            {(res.size / 1024).toFixed(2)} KB
+                                                            {res.hasBOM && <span className="block mt-1 text-[10px] text-yellow-500">BOM Removed</span>}
                                                         </td>
                                                     </tr>
                                                 ))
@@ -1235,7 +1266,8 @@
                                 </div>
                             </div>
                             <div className="text-xs text-slate-500 text-right">
-                                * 批次模式採用二進位讀取，完全比照 C++ 程式邏輯 (保留 \r, 移除 BOM)。
+                                * Config MD5: 模擬 C++ 讀取 (移除 BOM, 保留原始換行)<br/>
+                                * Standard MD5: 檔案原始內容雜湊 (同 StrErr/一般工具)
                             </div>
                         </div>
                     )}
