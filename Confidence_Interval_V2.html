@@ -1094,19 +1094,32 @@
                         startIndex = 3;
                     }
 
-                    // Build Full Binary String (for Standard MD5)
+                    // Build Full Binary String
                     for (let i = 0; i < uint8Array.length; i++) {
                         fullBinaryString += String.fromCharCode(uint8Array[i]);
                     }
                     
-                    // Slice for Config MD5 (Skip BOM)
-                    const configBinaryString = startIndex > 0 ? fullBinaryString.slice(startIndex) : fullBinaryString;
+                    // --- Pre-process for Text Paste Simulation ---
+                    // To match "Text Paste Mode", we act as if the file content was pasted into a textarea.
+                    // 1. Remove BOM (Textarea doesn't have BOM)
+                    let contentBody = startIndex > 0 ? fullBinaryString.slice(startIndex) : fullBinaryString;
+                    
+                    // 2. Normalize Newlines to \n (Textarea standard)
+                    let contentNormalized = contentBody.replace(/\r\n/g, '\n'); 
+
+                    // --- Config MD5 (Specialized) ---
+                    // Force \r\n
+                    let configStringEncoded = contentNormalized.replace(/\n/g, '\r\n');
+
+                    // --- Standard MD5 (Simulate Text Paste) ---
+                    // Keep \n (already normalized)
+                    let standardStringEncoded = contentNormalized;
 
                     if (window.CryptoJS) {
-                        // Config MD5: Skip BOM (if any)
-                        const configHash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(configBinaryString)).toString();
-                        // Standard MD5: Full Content (Like StrErr)
-                        const standardHash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(fullBinaryString)).toString();
+                        const configHash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(configStringEncoded)).toString();
+                        // Use Latin1 parse to ensure we hash the "byte values" of our modified string 1:1, 
+                        // effectively matching how text mode works for ASCII/UTF-8 entered as text.
+                        const standardHash = window.CryptoJS.MD5(window.CryptoJS.enc.Latin1.parse(standardStringEncoded)).toString();
                         
                         setFileResults(prev => [{
                             filename: file.name,
@@ -1197,7 +1210,7 @@
                                 <div className="bg-slate-800 text-sky-400 p-6 rounded-lg shadow-inner font-mono">
                                     <div className="text-slate-400 text-xs uppercase tracking-wider mb-1 flex justify-between">
                                         <span>Standard MD5 (StrErr)</span>
-                                        <span className="text-[10px] bg-slate-700 px-1 rounded text-slate-300">原始輸入 / 一般</span>
+                                        <span className="text-[10px] bg-slate-700 px-1 rounded text-slate-300">模擬貼上: 去 BOM / 轉 \n</span>
                                     </div>
                                     <div className="text-2xl font-bold break-all">{hashes.standard}</div>
                                 </div>
@@ -1236,28 +1249,26 @@
                                         <thead className="text-xs uppercase bg-slate-700 text-slate-300 sticky top-0 z-10">
                                             <tr>
                                                 <th className="px-4 py-3">檔案名稱</th>
-                                                <th className="px-4 py-3">Config MD5 <span className="text-[10px] opacity-50 block normal-case">(特化:去BOM)</span></th>
-                                                <th className="px-4 py-3">Standard MD5 <span className="text-[10px] opacity-50 block normal-case">(一般:含BOM)</span></th>
-                                                <th className="px-4 py-3">資訊</th>
+                                                <th className="px-4 py-3">Config MD5 <span className="text-[10px] opacity-50 block normal-case">(特化:轉\r\n)</span></th>
+                                                <th className="px-4 py-3">Standard MD5 <span className="text-[10px] opacity-50 block normal-case">(模擬貼上:轉\n)</span></th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-700">
                                             {fileResults.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan="4" className="px-6 py-8 text-center text-slate-600 italic">
+                                                    <td colSpan="3" className="px-6 py-8 text-center text-slate-600 italic">
                                                         尚未加入任何檔案
                                                     </td>
                                                 </tr>
                                             ) : (
                                                 fileResults.map((res, idx) => (
                                                     <tr key={idx} className="hover:bg-slate-700 transition">
-                                                        <td className="px-4 py-3 font-medium text-white break-all max-w-[200px]">{res.filename}</td>
+                                                        <td className="px-4 py-3 font-medium text-white break-all max-w-[200px]">
+                                                            {res.filename}
+                                                            {res.hasBOM && <span className="ml-2 text-[9px] bg-yellow-900 text-yellow-200 px-1.5 py-0.5 rounded align-middle">BOM</span>}
+                                                        </td>
                                                         <td className="px-4 py-3 text-green-400 font-bold break-all tracking-wide select-all cursor-text">{res.configHash}</td>
                                                         <td className="px-4 py-3 text-sky-400 font-bold break-all tracking-wide select-all cursor-text">{res.standardHash}</td>
-                                                        <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
-                                                            {(res.size / 1024).toFixed(2)} KB
-                                                            {res.hasBOM && <span className="block mt-1 text-[10px] text-yellow-500">BOM Removed</span>}
-                                                        </td>
                                                     </tr>
                                                 ))
                                             )}
@@ -1266,8 +1277,8 @@
                                 </div>
                             </div>
                             <div className="text-xs text-slate-500 text-right">
-                                * Config MD5: 模擬 C++ 讀取 (移除 BOM, 保留原始換行)<br/>
-                                * Standard MD5: 檔案原始內容雜湊 (同 StrErr/一般工具)
+                                * Config MD5: 模擬 C++ 讀取 (移除 BOM, 強制轉為 CRLF)<br/>
+                                * Standard MD5: 模擬文字貼上 (移除 BOM, 強制轉為 LF)
                             </div>
                         </div>
                     )}
